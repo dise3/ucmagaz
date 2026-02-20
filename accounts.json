@@ -1,0 +1,108 @@
+[
+  {
+    "email": "MidasBuyMy1@hotmail.com",
+    "cookies": [
+      {
+        "name": "UUID",
+        "value": "08262078842534277177090731731232972",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": -1,
+        "httpOnly": false,
+        "secure": true,
+        "sameSite": "None"
+      },
+      {
+        "name": "midasbuyDeviceId",
+        "value": "073254941714909851770907317315",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": 1802443358.292906,
+        "httpOnly": false,
+        "secure": true,
+        "sameSite": "None"
+      },
+      {
+        "name": "select_cookie",
+        "value": "0",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": 1802443317.562229,
+        "httpOnly": false,
+        "secure": true,
+        "sameSite": "None"
+      },
+      {
+        "name": "cookie_control",
+        "value": "0|0|0",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": 1802443317.562249,
+        "httpOnly": false,
+        "secure": true,
+        "sameSite": "None"
+      },
+      {
+        "name": "shopcode",
+        "value": "midasbuy",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": -1,
+        "httpOnly": false,
+        "secure": false,
+        "sameSite": "Lax"
+      },
+      {
+        "name": "country",
+        "value": "ru",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": 1773499351.57272,
+        "httpOnly": false,
+        "secure": false,
+        "sameSite": "Lax"
+      },
+      {
+        "name": "tencent_tdrc",
+        "value": "SCA9fu4QRRzM9k3KgUknWw7kLyGmI6th1Q",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": 1802443319.116423,
+        "httpOnly": false,
+        "secure": false,
+        "sameSite": "Lax"
+      },
+      {
+        "name": "session_token",
+        "value": "3a34996b26b4f187f832f8a173ec04df5d20abc081d42792f65282603fdcc084",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": 1771512150.485258,
+        "httpOnly": true,
+        "secure": true,
+        "sameSite": "None"
+      },
+      {
+        "name": "platform_temp_token",
+        "value": "",
+        "domain": "www.midasbuy.com",
+        "path": "/",
+        "expires": -1,
+        "httpOnly": true,
+        "secure": true,
+        "sameSite": "Lax"
+      },
+      {
+        "name": "forterToken",
+        "value": "54b13df7e73e451296548d7212f6f199_1770907321104__UDFT30_27ck",
+        "domain": ".midasbuy.com",
+        "path": "/",
+        "expires": 1805467351,
+        "httpOnly": false,
+        "secure": false,
+        "sameSite": "Lax"
+      }
+    ],
+    "updatedAt": "2026-02-12T14:42:38.366Z"
+  }
+]

@@ -1,0 +1,621 @@
+import { chromium, Frame } from 'playwright';
+import path from 'path';
+
+export async function singleAccountTest(email: string, uid: string, code: string, pass: string) {
+    const userDataDir = path.resolve(process.cwd(), 'sessions/main_account');
+
+    const context = await chromium.launchPersistentContext(userDataDir, {
+        headless: false,
+        viewport: { width: 1280, height: 720 },
+        args: ['--disable-blink-features=AutomationControlled', '--no-sandbox']
+    });
+
+    const page = context.pages()[0] || await context.newPage();
+
+    try {
+        console.log(`[${email}] 🌐 Открываю Midasbuy...`);
+        await page.goto('https://www.midasbuy.com/midasbuy/ru/redeem/pubgm', {
+            waitUntil: 'domcontentloaded',
+            timeout: 60000
+        });
+
+        await page.waitForTimeout(4000);
+
+        // --- ЭТАП 1: РАСЧИСТКА ---
+        await page.evaluate(() => {
+            const selectors = ['.cumulativeRecharge-content_32axf', '.loading-container', '.pagedoo-loading', '.vip-entry-banner', '.PopUp'];
+            selectors.forEach(s => {
+                const el = document.querySelector(s) as HTMLElement;
+                if (el) el.style.display = 'none';
+            });
+        });
+
+        // --- ЭТАП 2: АВТОРИЗАЦИЯ ---
+        const loginBtn = page.locator('text="Войти"').or(page.locator('text="Log in"')).first();
+        const needsLogin = await loginBtn.isVisible();
+
+        if (needsLogin) {
+            console.log(`[!] Вижу кнопку "Войти". Начинаю авторизацию...`);
+            await loginBtn.click({ force: true });
+
+            // Меню
+            const menuLoginBtn = page.locator('div, button').filter({ hasText: /^Login\/Register$/i }).first();
+            await menuLoginBtn.waitFor({ state: 'visible', timeout: 5000 });
+            await menuLoginBtn.click({ force: true });
+
+            console.log(`[⏳] Жду фрейм...`);
+            await page.waitForTimeout(4000);
+
+            // Поиск фрейма
+            let authFrame: Frame | null = null;
+            for (let i = 0; i < 5; i++) {
+                for (const frame of page.frames()) {
+                    if (await frame.locator('.to-other-login').count() > 0 || await frame.locator('input[type="email"]').count() > 0) {
+                        authFrame = frame;
+                        break;
+                    }
+                }
+                if (authFrame) break;
+                await page.waitForTimeout(1000);
+            }
+
+            if (authFrame) {
+                console.log(`[🎯] Фрейм найден.`);
+                const otherBtn = authFrame.locator('.to-other-login, .switch-mode').first();
+                if (await otherBtn.isVisible()) {
+                    await otherBtn.click({ force: true });
+                    await page.waitForTimeout(1000);
+                }
+
+                console.log(`[✉️] Ввод данных...`);
+                await authFrame.locator('input[type="email"]').fill(email);
+
+                const continueBtn = authFrame.locator('.comfirm-btn, div[class*="btn"]').filter({ hasText: /Продолжить|Continue/i }).first();
+
+                // Retry click
+                for (let attempt = 1; attempt <= 3; attempt++) {
+                    await continueBtn.click({ force: true });
+                    try {
+                        await authFrame.locator('input[type="password"]').waitFor({ state: 'visible', timeout: 3000 });
+                        break;
+                    } catch {}
+                }
+
+                await authFrame.locator('input[type="password"]').fill(pass);
+                const loginSubmitBtn = authFrame.locator('.comfirm-btn, div[class*="btn"]').filter({ hasText: /Вход|Log in/i }).first();
+                await loginSubmitBtn.click({ force: true });
+            }
+
+            console.log(`[⏳] Ожидание входа...`);
+            await loginBtn.waitFor({ state: 'hidden', timeout: 60000 });
+            console.log(`[✅] Вход выполнен.`);
+        } else {
+            console.log(`[ℹ️] Уже авторизованы.`);
+        }
+
+        // --- ЭТАП 3: АКТИВАЦИЯ (ИСПРАВЛЕНО) ---
+
+        console.log(`[🔎] Проверяю поле ввода ID...`);
+
+        // ВАЖНОЕ ИСПРАВЛЕНИЕ:
+        // Мы проверяем isVisible() для поля ввода. Если оно скрыто - значит ID уже введен.
+        // Мы НЕ используем fill() сразу, чтобы не словить ошибку ожидания.
+        const idInput = page.locator('.input-account');
+        const isInputVisible = await idInput.isVisible();
+
+        if (isInputVisible) {
+            console.log(`[${email}] 👤 Поле ID пустое. Ввожу ID: ${uid}`);
+            await idInput.fill(uid);
+            await page.locator('div[class*="Button_text"]').filter({ hasText: /^OK$|^ОК$/i }).first().click({ force: true });
+            await page.waitForTimeout(2000);
+        } else {
+            console.log(`[✅] Поле ID скрыто/заполнено. Считаем, что ID (${uid}) уже валиден.`);
+        }
+
+        console.log(`[${email}] 🔑 Ввод кода: ${code}`);
+        const redeemInput = page.locator('.input-redeem, input[placeholder*="код"]');
+
+        // Ждем поле кода (на всякий случай)
+        await redeemInput.waitFor({ state: 'visible', timeout: 10000 });
+        await redeemInput.fill(code);
+
+        console.log(`[🚀] Отправка...`);
+        const submitBtn = page.locator('button.btn-confirm, .submit-button, div[class*="Button_text"]').filter({ hasText: /OK|ОК|Отправить/i }).last();
+        await submitBtn.click({ force: true });
+
+        await page.waitForTimeout(5000);
+
+        // Читаем результат
+        try {
+            const resultMsg = await page.locator('.PopUp .content, .modal-content').innerText();
+            console.log(`[🏁] Результат: ${resultMsg.replace(/\n/g, ' ')}`);
+        } catch {
+            console.log(`[🏁] Готово (всплывающее окно закрылось или не найдено).`);
+        }
+
+        await context.close();
+
+    } catch (error: any) {
+        console.error(`❌ Ошибка: ${error.message}`);
+        await context.close();
+    }
+}
+
+singleAccountTest("MidasBuyMy1@hotmail.com", "51397041237", "KP4JUgnq2j43bdG8F5", "Nikitamidas123!");
+
+
+import { chromium } from 'playwright';
+import type { Frame, Page, BrowserContext } from 'playwright';
+import path from 'path';
+import fs from 'fs';
+
+export type ActivationResult = 'SUCCESS' | 'CAPTCHA' | 'ERROR' | 'ALREADY_REDEEMED';
+
+const STEALTH_ARGS = [
+    '--disable-blink-features=AutomationControlled',
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu'
+];
+
+/**
+ * Очистка страницы от баннеров и масок
+ */
+async function applyNuclearCleanup(page: Page) {
+    await page.addInitScript(() => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+            [class*="cumulativeRecharge"], [class*="PopUp"], .PopUp,
+            [class*="modal-mask"], [class*="mask"], .v-modal,
+            .cookie-confirm, .cookie-policy, .pagedoo-loading,
+            #fix-bottom-bar, .home-pop {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+            body, html { overflow: auto !important; pointer-events: auto !important; position: static !important; }
+        `;
+        document.documentElement.appendChild(style);
+
+        setInterval(() => {
+            const closeBtn = document.querySelector('.cumulativeRecharge-close_1TD7P');
+            if (closeBtn) (closeBtn as HTMLElement).click();
+            document.body.classList.remove('modal-open');
+        }, 500);
+    });
+}
+
+/**
+ * ФУНКЦИЯ 1: ПРОВЕРКА UID
+ */
+export async function verifyIdOnMidas(uid: string): Promise<{ valid: boolean; nickname?: string }> {
+    const browser = await chromium.launch({ headless: false, args: STEALTH_ARGS });
+    const page = await browser.newPage();
+    await applyNuclearCleanup(page);
+
+    try {
+        await page.goto('https://www.midasbuy.com/midasbuy/ru/redeem/pubgm', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const idInput = page.locator('.input-account');
+        await idInput.waitFor({ state: 'visible', timeout: 15000 });
+        await idInput.fill(uid);
+        await page.locator('div[class*="Button_text"]').filter({ hasText: /^OK$|^ОК$/i }).first().click({ force: true });
+
+        const nickEl = page.locator('.user-name, .name, .nickname').first();
+        await nickEl.waitFor({ state: 'visible', timeout: 10000 });
+        const nickname = await nickEl.innerText();
+        return { valid: true, nickname: nickname.trim() };
+    } catch (e) { return { valid: false }; }
+    finally { await browser.close(); }
+}
+
+/**
+ * ФУНКЦИЯ 2: АКТИВАЦИЯ КОДА
+ */
+export async function activateSingleCode(account: { email: string, pass: string }, uid: string, code: string): Promise<ActivationResult> {
+    const safeEmail = account.email.replace(/[^a-zA-Z0-9]/g, '_');
+    const userDataDir = path.resolve(process.cwd(), `sessions/${safeEmail}`);
+    if (!fs.existsSync(userDataDir)) fs.mkdirSync(userDataDir, { recursive: true });
+
+    const context = await chromium.launchPersistentContext(userDataDir, {
+        headless: false,
+        viewport: { width: 1280, height: 720 },
+        args: STEALTH_ARGS
+    });
+
+    const page = context.pages()[0] || await context.newPage();
+    await applyNuclearCleanup(page);
+    let result: ActivationResult = 'ERROR';
+
+    try {
+        await page.goto('https://www.midasbuy.com/midasbuy/ru/redeem/pubgm', { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+        const loginBtn = page.locator('text="Войти"').or(page.locator('text="Log in"')).first();
+
+        if (await loginBtn.isVisible({ timeout: 5000 })) {
+            await loginBtn.click({ force: true });
+            const menuBtn = page.locator('div, button').filter({ hasText: /^Login\/Register$/i }).first();
+            await menuBtn.waitFor({ state: 'visible', timeout: 5000 });
+
+            // --- ЛОГИКА ОБРАБОТКИ ВТОРОЙ СТРАНИЦЫ (POPUP) ---
+            const [loginPage] = await Promise.all([
+                context.waitForEvent('page', { timeout: 10000 }).catch(() => page), // Ждем новое окно или остаемся в старом
+                menuBtn.click({ force: true })
+            ]);
+
+            console.log(`[🔐] Работаю в окне: ${loginPage.url()}`);
+
+            // Пытаемся найти форму входа (либо во фрейме, либо на самой странице)
+            let target: Page | Frame = loginPage;
+            const emailInput = loginPage.locator('input[type="email"]');
+            const otherBtn = loginPage.locator('.to-other-login, text="другими способами"').first();
+
+            // Если поля нет сразу, ищем во фреймах
+            if (await emailInput.count() === 0) {
+                for (const frame of loginPage.frames()) {
+                    if (await frame.locator('input[type="email"]').count() > 0) {
+                        target = frame; break;
+                    }
+                }
+            }
+
+            // Если нашли кнопку "другими способами", жмем
+            if (await target.locator('.to-other-login').isVisible()) {
+                await target.locator('.to-other-login').click();
+            }
+
+            await target.locator('input[type="email"]').fill(account.email);
+            const contBtn = target.locator('.comfirm-btn').filter({ hasText: /Продолжить|Continue/i }).first();
+
+            for(let i = 0; i < 3; i++) {
+                await contBtn.click({ force: true });
+                try {
+                    await target.locator('input[type="password"]').waitFor({ state: 'visible', timeout: 4000 });
+                    break;
+                } catch (e) {}
+            }
+
+            await target.locator('input[type="password"]').fill(account.pass);
+            await target.locator('.comfirm-btn').filter({ hasText: /Вход|Log in/i }).first().click({ force: true });
+
+            // Если это было отдельное окно, оно закроется само. Если нет - ждем исчезновения кнопки.
+            if (loginPage !== page) {
+                await loginPage.waitForEvent('close', { timeout: 30000 }).catch(() => loginPage.close());
+            } else {
+                await loginBtn.waitFor({ state: 'hidden', timeout: 30000 });
+            }
+        }
+
+        // Возвращаемся к основной странице
+        await page.bringToFront();
+        await page.waitForTimeout(2000);
+
+        const idInput = page.locator('.input-account');
+        const isNickVisible = await page.locator('.user-name, .name, .nickname').first().isVisible();
+
+        if (!isNickVisible && await idInput.isVisible()) {
+            await idInput.fill(uid);
+            await page.locator('div[class*="Button_text"]').filter({ hasText: /^OK$|^ОК$/i }).first().click({ force: true });
+            await page.waitForTimeout(2000);
+        }
+
+        await page.locator('.input-redeem').fill(code);
+        await page.locator('button.btn-confirm, .submit-button, div[class*="Button_text"]').filter({ hasText: /OK|ОК|Отправить/i }).last().click({ force: true });
+
+        const popup = page.locator('.PopUp .content, .modal-content, .result-title').first();
+        await popup.waitFor({ state: 'visible', timeout: 15000 });
+        const text = await popup.innerText();
+
+        if (text.includes("Busy") || text.includes("busy")) result = 'CAPTCHA';
+        else if (text.includes("Success") || text.includes("Успешно")) result = 'SUCCESS';
+        else if (text.includes("already") || text.includes("использован")) result = 'ALREADY_REDEEMED';
+        else result = 'ERROR';
+
+    } catch (error: any) {
+        console.error("Ошибка:", error.message);
+        result = 'CAPTCHA'; // В любой непонятной ситуации (таймаут) считаем, что вылезла капча
+    } finally {
+        await context.close();
+    }
+    return result;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import { chromium } from 'playwright';
+import type { Frame, Page } from 'playwright';
+import path from 'path';
+import fs from 'fs';
+
+export type ActivationResult = 'SUCCESS' | 'CAPTCHA' | 'ERROR' | 'ALREADY_REDEEMED';
+
+const STEALTH_ARGS = [
+    '--disable-blink-features=AutomationControlled',
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--window-position=0,0'
+];
+
+// Добавляем User-Agent, чтобы сайт не блокировал нас
+const USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+/**
+ * Очистка страницы от баннеров и масок
+ */
+async function applyNuclearCleanup(page: Page) {
+    await page.addInitScript(() => {
+        const style = document.createElement('style');
+        style.innerHTML = `
+            [class*="cumulativeRecharge"], [class*="PopUp"], .PopUp,
+            [class*="modal-mask"], [class*="mask"], .v-modal,
+            .cookie-confirm, .cookie-policy, .pagedoo-loading,
+            #fix-bottom-bar, .home-pop {
+                display: none !important;
+                visibility: hidden !important;
+                pointer-events: none !important;
+            }
+            body, html { overflow: auto !important; pointer-events: auto !important; position: static !important; }
+        `;
+        document.documentElement.appendChild(style);
+
+
+        const observer = new MutationObserver(() => {
+            const closeBtn = document.querySelector('.cumulativeRecharge-close_1TD7P');
+            if (closeBtn) (closeBtn as HTMLElement).click();
+            if (document.body.classList.contains('modal-open')) {
+                document.body.classList.remove('modal-open');
+            }
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    });
+}
+
+/**
+ * ФУНКЦИЯ 1: ПРОВЕРКА UID
+ */
+export async function verifyIdOnMidas(uid: string): Promise<{ valid: boolean; nickname?: string }> {
+    const browser = await chromium.launch({ headless: false, args: STEALTH_ARGS });
+    const context = await browser.newContext({ userAgent: USER_AGENT });
+    const page = await context.newPage();
+    await applyNuclearCleanup(page);
+
+    try {
+        await page.goto('https://www.midasbuy.com/midasbuy/ru/redeem/pubgm', { waitUntil: 'domcontentloaded', timeout: 30000 });
+        const idInput = page.locator('.input-account');
+        await idInput.waitFor({ state: 'visible', timeout: 15000 });
+        await idInput.fill(uid);
+        await page.locator('div[class*="Button_text"]').filter({ hasText: /^OK$|^ОК$/i }).first().click({ force: true });
+
+        const nickEl = page.locator('.user-name, .name, .nickname').first();
+        await nickEl.waitFor({ state: 'visible', timeout: 10000 });
+        const nickname = await nickEl.innerText();
+        return { valid: true, nickname: nickname.trim() };
+    } catch (e) { return { valid: false }; }
+    finally { await browser.close(); }
+}
+
+/**
+ * ФУНКЦИЯ 2: АКТИВАЦИЯ КОДА
+ */
+export async function activateSingleCode(account: { email: string, pass: string }, uid: string, code: string): Promise<ActivationResult> {
+    const safeEmail = account.email.replace(/[^a-zA-Z0-9]/g, '_');
+    const userDataDir = path.resolve(process.cwd(), `sessions/${safeEmail}`);
+    if (!fs.existsSync(userDataDir)) fs.mkdirSync(userDataDir, { recursive: true });
+
+    const context = await chromium.launchPersistentContext(userDataDir, {
+        headless: false,
+        viewport: { width: 1280, height: 720 },
+        args: STEALTH_ARGS,
+        userAgent: USER_AGENT
+    });
+
+    const page = context.pages()[0] || await context.newPage();
+    await applyNuclearCleanup(page);
+    let result: ActivationResult = 'ERROR';
+
+    async function closeMidasBanner(page: Page) {
+    const closeBtn = page.locator('.cumulativeRecharge-close_1TD7P');
+
+    try {
+        // Ждем появления кнопки максимум 2 секунды, чтобы не тормозить основной код
+        if (await closeBtn.isVisible({ timeout: 2000 })) {
+            console.log("[🧹] Обнаружен рекламный баннер, закрываю...");
+            await closeBtn.click({ force: true });
+        }
+    } catch (e) {
+        // Если кнопки нет или она не появилась — просто идем дальше
+    }
+}
+
+    try {
+        console.log(`[🌐] Переход на Midasbuy...`);
+        await page.goto('https://www.midasbuy.com/midasbuy/ru/redeem/pubgm', { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+        const loginBtn = page.locator('text="Войти"').or(page.locator('text="Log in"')).first();
+        const isAlreadyLoggedIn = await page.locator('.avatar-img').count() > 0;
+
+        if (!isAlreadyLoggedIn && await loginBtn.isVisible({ timeout: 5000 })) {
+            console.log(`[1️⃣] Нажимаю "Войти"...`);
+            await loginBtn.click({ force: true });
+
+            const menuBtn = page.locator('div, button').filter({ hasText: /^Login\/Register$/i }).first();
+            await menuBtn.waitFor({ state: 'visible', timeout: 5000 });
+
+            console.log(`[2️⃣] Нажимаю "Login/Register"...`);
+            await menuBtn.click({ force: true });
+
+            // Ждем немного, пока Midas загрузит фрейм
+            await page.waitForTimeout(2000);
+
+            // --- ЛОГИКА ПОИСКА ОКНА АВТОРИЗАЦИИ ---
+            let target: Page | Frame = page;
+            let isFrame = false;
+
+            // 1. Сначала ищем IFRAME на текущей странице (наиболее вероятно)
+            const frames = page.frames();
+            for (const f of frames) {
+                // Ищем характерную кнопку "другими способами" или поле email
+                if (await f.locator('.to-other-login').count() > 0 || await f.locator('input[type="email"]').count() > 0) {
+                    target = f;
+                    isFrame = true;
+                    console.log(`[🎯] Найден iframe авторизации.`);
+                    break;
+                }
+            }
+
+            // 2. Если фрейм не найден, проверяем, не открылась ли вкладка (на всякий случай)
+            if (!isFrame) {
+                 const pages = context.pages();
+                 if (pages.length > 1) {
+                     target = pages[pages.length - 1]; // Берем последнюю вкладку
+                     console.log(`[⚠️] Обнаружена новая вкладка, переключаюсь.`);
+                 }
+            }
+
+            // --- ВНУТРИ ФОРМЫ ---
+
+            // Ищем и жмем "другими способами", если она есть (исправил селектор!)
+            const otherBtn = target.locator('.to-other-login')
+                .or(target.locator('text="другими способами"'))
+                .first();
+
+            if (await otherBtn.isVisible()) {
+                console.log(`[🖱️] Жму "другими способами"...`);
+                await otherBtn.click({ force: true });
+                await page.waitForTimeout(1000);
+            }
+
+            console.log(`[✉️] Ввод почты...`);
+            await target.locator('input[type="email"]').fill(account.email);
+
+            const contBtn = target.locator('.comfirm-btn')
+                .filter({ hasText: 'Продолжить' })
+                .first();
+
+            // Клик "Продолжить" с повтором (иногда тупит)
+            for(let i = 0; i < 3; i++) {
+                await contBtn.click({ force: true });
+                try {
+                    await target.locator('input[type="password"]').waitFor({ state: 'visible', timeout: 3000 });
+                    break;
+                } catch (e) {
+                    // Игнорируем ошибку ожидания, пробуем кликнуть еще раз
+                }
+            }
+
+            console.log(`[🔑] Ввод пароля...`);
+            await target.locator('input[type="password"]').fill(account.pass);
+
+            const loginSubmit = target.locator('.comfirm-btn')
+                .filter({hasText : 'Вход'})
+
+            await loginSubmit.click({ force: true });
+
+            // Ждем закрытия окна
+            await page.waitForTimeout(4000);
+        }
+
+        // --- АКТИВАЦИЯ КОДА ---
+        await page.bringToFront();
+
+
+
+
+        const banner = page.locator('.cumulativeRecharge-close_1TD7P');
+        if (await banner.isVisible({ timeout: 1500 }).catch(() => false)) {
+        await banner.click({ force: true }).catch(() => {});
+        }
+
+        // Проверяем, нужно ли вводить ID
+        const idInput = page.locator('.input-account');
+        const isNickVisible = await page.locator('.user-name, .name, .nickname').first().isVisible();
+
+        if (!isNickVisible && await idInput.isVisible()) {
+            console.log(`[👤] Ввожу ID: ${uid}`);
+            await idInput.fill(uid);
+            await page.locator('div[class*="Button_text"]').filter({ hasText: /^OK$|^ОК$/i }).first().click({ force: true });
+            await page.waitForTimeout(2000);
+        }
+
+        console.log(`[🎁] Ввод кода: ${code}`);
+        const redeemInput = page.locator('.input-redeem');
+        await redeemInput.waitFor({ state: 'visible', timeout: 10000 });
+        await redeemInput.fill(code);
+
+        const submitBtn = page.locator('button.btn-confirm, .submit-button, div[class*="Button_text"]').filter({ hasText: /OK|ОК|Отправить/i }).last();
+        await submitBtn.click({ force: true });
+
+        // Анализ результата
+        console.log("[⏳] Жду ответ...");
+        try {
+            const popup = page.locator('.PopUp .content, .modal-content, .result-title, .box-content').first();
+            await popup.waitFor({ state: 'visible', timeout: 15000 });
+            const text = await popup.innerText();
+            console.log(`[📄] Результат: ${text.replace(/\n/g, ' ')}`);
+
+            if (text.match(/Busy|busy|повторите/i)) result = 'CAPTCHA';
+            else if (text.match(/Success|Успешно/i)) result = 'SUCCESS';
+            else if (text.match(/already|использован/i)) result = 'ALREADY_REDEEMED';
+            else result = 'ERROR';
+
+        } catch (error: any) {
+             // Проверка на капчу-картинку
+             if (await page.locator('#img-captcha-container').count() > 0) {
+                 result = 'CAPTCHA';
+             } else {
+                 console.error("Ошибка ожидания попапа:", error.message);
+                 result = 'ERROR';
+             }
+        }
+
+    } catch (error: any) {
+        console.error("❌ Критическая ошибка:", error.message);
+        result = 'ERROR';
+    } finally {
+        await page.waitForTimeout(1000000);
+    }
+    return result;
+}
+
+
+<div class="MobileNav_sign_in__qA2oK MobileNav_imp__hchy7 MobileNav_active__Zn8O8" data-iformat="login"><i class="i-midas:user icon MobileNav_user__0id3v"></i><p>Войти</p><i class="i-midas:up icon MobileNav_down__AN1h3"></i></div>
+<
+<
+<
+<        // --- 3. ПОЛУЧЕНИЕ НИКА ---
+        const nameLocator = page.locator('div[class*="UserDataBox_text"]').first();
+        if (await nameLocator.isVisible({ timeout: 5000 })) {
+            username = (await nameLocator.innerText()).trim();
+            console.log(`[👤] Игрок: ${username}`);
+        }
+
+    } catch (e: any) {
+        console.error(`[❌] Ошибка: ${e.message}`);
+    } finally {
+        await page.waitForTimeout(60000);
+        await context.close();
+    }
+    return username;
+}

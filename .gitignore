@@ -1,0 +1,20 @@
+# Зависимости
+node_modules/
+
+# Локальные настройки и секреты
+.env
+*.env.local
+server/.env
+
+# Сессии Playwright (чувствительные данные)
+server/sessions/
+
+# Логи и сборка
+server/logs/
+server/dist/
+*.log
+
+# IDE
+.idea/
+.vscode/
+*.swp

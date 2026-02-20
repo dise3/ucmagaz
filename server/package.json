@@ -1,0 +1,30 @@
+{
+  "name": "server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "server.ts",
+  "scripts": {
+    "start": "ts-node --esm server.ts",
+    "build": "tsc",
+    "dev": "ts-node server.ts",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:activate": "ts-node test-activator.ts",
+    "set-webhook": "ts-node set-webhook.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.39.0",
+    "axios": "^1.6.2",
+    "cors": "^2.8.6",
+    "dotenv": "^16.3.1",
+    "express": "^4.22.1",
+    "playwright": "^1.58.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.6",
+    "@types/node": "^25.3.0",
+    "nodemon": "^3.0.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}
