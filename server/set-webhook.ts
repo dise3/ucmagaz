@@ -42,7 +42,10 @@ async function main() {
   console.log('📋 Текущий webhook:', info.data.result?.url || '(не установлен)');
 }
 
-main().catch((e) => {
+main().catch((e: any) => {
   console.error('❌ Ошибка:', e.message);
+  if (e.response?.data) {
+    console.error('Ответ Telegram:', JSON.stringify(e.response.data, null, 2));
+  }
   process.exit(1);
 });
