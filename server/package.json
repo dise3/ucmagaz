@@ -8,8 +8,8 @@
     "build": "tsc",
     "dev": "ts-node server.ts",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "test:activate": "ts-node test-activator.ts",
-    "set-webhook": "ts-node set-webhook.ts"
+    "test:activate": "tsx test-activator.ts",
+    "set-webhook": "tsx set-webhook.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
