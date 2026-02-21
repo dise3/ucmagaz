@@ -7,7 +7,7 @@ import { findCodesForAmount } from './inventory.ts';
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_CHAT_IDS = process.env.ADMIN_CHAT_IDS ? process.env.ADMIN_CHAT_IDS.split(',').map(id => id.trim()) : [process.env.ADMIN_CHAT_ID!];
+const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
 
 interface CodeItem {
     id: string | number;
@@ -59,9 +59,7 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
         
         if (!rawCodes || rawCodes.length === 0) {
             console.error(`❌ Не удалось подобрать коды для ${amount} UC`);
-            for (const adminId of ADMIN_CHAT_IDS) {
-                await sendTg(adminId, `⚠️ <b>ОШИБКА СКЛАДА</b>\nЗаказ #${orderId}\nНе хватает кодов для суммы ${amount} UC!`);
-            }
+            await sendTg(ADMIN_CHAT_ID!, `⚠️ <b>ОШИБКА СКЛАДА</b>\nЗаказ #${orderId}\nНе хватает кодов для суммы ${amount} UC!`);
             await supabase.from('orders').update({ status: 'error_no_codes' }).eq('id', orderId);
             return;
         }
@@ -77,9 +75,7 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
         
         if (accError || !accounts || accounts.length === 0) {
             console.error(`❌ Нет доступных аккаунтов Midasbuy`);
-            for (const adminId of ADMIN_CHAT_IDS) {
-                await sendTg(adminId, `⚠️ <b>КРИТИЧЕСКАЯ ОШИБКА</b>\nНет активных аккаунтов Midasbuy в базе!`);
-            }
+            await sendTg(ADMIN_CHAT_ID!, `⚠️ <b>КРИТИЧЕСКАЯ ОШИБКА</b>\nНет активных аккаунтов Midasbuy в базе!`);
 
             await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).in('id', codeIds);
 
@@ -97,9 +93,7 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
             while (!isCodeDone) {
                 if (accIndex >= accounts.length) {
                     console.error(`💀 Все аккаунты исчерпаны на коде ${item.code}`);
-                    for (const adminId of ADMIN_CHAT_IDS) {
-                        await sendTg(adminId, `💀 <b>СТОП БОТ</b>\nВсе аккаунты в капче. Заказ #${orderId} приостановлен.`);
-                    }
+                    await sendTg(ADMIN_CHAT_ID!, `💀 <b>СТОП БОТ</b>\nВсе аккаунты в капче. Заказ #${orderId} приостановлен.`);
                     
                     await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('id', item.id);
                     
@@ -145,9 +139,7 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
                         error_log: result 
                     }).eq('id', item.id);
 
-                    for (const adminId of ADMIN_CHAT_IDS) {
-                        await sendTg(adminId, `⚠️ <b>БИТЫЙ КОД</b>\n${item.code} (${item.value} UC)\nЗаказ: #${orderId}. Ищу замену...`);
-                    }
+                    await sendTg(ADMIN_CHAT_ID!, `⚠️ <b>БИТЫЙ КОД</b>\n${item.code} (${item.value} UC)\nЗаказ: #${orderId}. Ищу замену...`);
 
                     const replacement = await findReplacementCode(orderId, item.value);
                     if (replacement) {
@@ -178,21 +170,15 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
 
         if (finalStatus === 'completed') {
             if (chatId) await sendTg(chatId, `✅ <b>Заказ выполнен!</b>\n${activatedUcTotal} UC успешно зачислены на UID: ${uid}.`);
-            for (const adminId of ADMIN_CHAT_IDS) {
-                await sendTg(adminId, `🤖 Заказ #${orderId} выполнен полностью (${activatedUcTotal} UC).`);
-            }
+            await sendTg(ADMIN_CHAT_ID!, `🤖 Заказ #${orderId} выполнен полностью (${activatedUcTotal} UC).`);
         } else {
             const msg = `⚠️ Заказ #${orderId} выполнен частично: ${activatedUcTotal}/${amount} UC.`;
-            for (const adminId of ADMIN_CHAT_IDS) {
-                await sendTg(adminId, msg);
-            }
+            await sendTg(ADMIN_CHAT_ID!, msg);
             if (chatId) await sendTg(chatId, `⚠️ <b>Ваш заказ выполнен частично.</b>\nЗачислено ${activatedUcTotal} из ${amount} UC. Свяжитесь с поддержкой.`);
         }
     } catch (error) {
         console.error(`💥 Критическая ошибка в fulfillOrder для заказа #${orderId}:`, error);
-        for (const adminId of ADMIN_CHAT_IDS) {
-            await sendTg(adminId, `💥 <b>КРИТИЧЕСКАЯ ОШИБКА БОТА</b>\nЗаказ #${orderId}. Проверьте логи.`);
-        }
+        await sendTg(ADMIN_CHAT_ID!, `💥 <b>КРИТИЧЕСКАЯ ОШИБКА БОТА</b>\nЗаказ #${orderId}. Проверьте логи.`);
 
         await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('order_id', orderId).eq('status', 'RESERVED');
     } finally {
