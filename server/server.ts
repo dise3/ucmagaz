@@ -564,13 +564,17 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('курс_store ')) {
                 const rate = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
+                console.log('Setting usd_rate_store to', rate);
+                const { error } = await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
+                console.log('Update error:', error);
                 await sendTg(chatId, `📉 Курс Store обновлен: ${rate} руб/$`);
             }
 
             if (text.toLowerCase().startsWith('курс_promo ')) {
                 const rate = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
+                console.log('Setting usd_rate_promo to', rate);
+                const { error } = await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
+                console.log('Update error:', error);
                 await sendTg(chatId, `📉 Курс Promo обновлен: ${rate} руб/$`);
             }
 
