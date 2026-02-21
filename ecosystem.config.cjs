@@ -7,9 +7,8 @@ module.exports = {
     {
       name: 'ucmagaz-server',
       cwd: './server',
-      script: 'npm',
-      args: 'run start',
-      interpreter: 'none',
+      script: 'server.ts',
+      interpreter: 'node_modules/.bin/tsx',
       instances: 1,
       autorestart: true,
       watch: false,
