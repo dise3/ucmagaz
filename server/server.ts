@@ -205,6 +205,7 @@ app.get('/api/products', async (req, res) => {
         if (!settings || !products) return res.status(500).json({ error: 'DB Data not found' });
 
         const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate || 90) : (settings.usd_rate_store || settings.usd_rate || 90);
+        console.log('Products usdRate:', usdRate, 'store:', store, 'usd_rate_store:', settings.usd_rate_store, 'usd_rate_promo:', settings.usd_rate_promo);
 
         const list = products.map(p => {
             const productMarkup = p.markup_rub || 0;
