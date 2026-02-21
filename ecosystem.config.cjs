@@ -1,3 +1,5 @@
+const path = require('path');
+
 /**
  * PM2 конфиг для UC Магазин
  * Запуск: pm2 start ecosystem.config.cjs
@@ -6,9 +8,9 @@ module.exports = {
   apps: [
     {
       name: 'ucmagaz-server',
-      cwd: './server',
+      cwd: path.join(__dirname, 'server'),
       script: 'server.ts',
-      interpreter: 'node_modules/.bin/tsx',
+      interpreter: path.join(__dirname, 'server/node_modules/.bin/tsx'),
       instances: 1,
       autorestart: true,
       watch: false,
