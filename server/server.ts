@@ -1,4 +1,6 @@
 import 'dotenv/config';
+console.log('dotenv loaded');
+
 import express from 'express';
 import { activateSingleCode } from './activator.ts';
 import axios from 'axios';
