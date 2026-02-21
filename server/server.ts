@@ -205,7 +205,10 @@ app.get('/api/products', async (req, res) => {
 
         const list = products.map(p => {
             const productMarkup = p.markup_rub || 0;
-            const finalPrice = Math.ceil(((p.price_usd * usdRate) + productMarkup) * (1 + settings.fee_percent));
+            const basePrice = (p.price_usd * usdRate) + productMarkup;
+            const finalPrice = store === 'promo' 
+                ? Math.ceil(basePrice) 
+                : Math.ceil(basePrice * (1 + settings.fee_percent));
             
             return {
                 id: p.id,
