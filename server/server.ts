@@ -27,6 +27,7 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
+console.log('process.env.ADMIN_CHAT_ID:', process.env.ADMIN_CHAT_ID);
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID ? process.env.ADMIN_CHAT_ID.split(',').map(id => id.trim()) : [];
 console.log('ADMIN_CHAT_ID loaded:', ADMIN_CHAT_ID);
 const BACKEND_URL = process.env.BACKEND_URL;
