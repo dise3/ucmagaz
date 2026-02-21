@@ -28,6 +28,7 @@ const supabase = createClient(
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID ? process.env.ADMIN_CHAT_ID.split(',').map(id => id.trim()) : [];
+console.log('ADMIN_CHAT_ID loaded:', ADMIN_CHAT_ID);
 const BACKEND_URL = process.env.BACKEND_URL;
 
 const automationTimers = new Map<number, NodeJS.Timeout>();
