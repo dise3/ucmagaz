@@ -27,7 +27,7 @@ const supabase = createClient(
 );
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID;
+const ADMIN_CHAT_IDS = process.env.ADMIN_CHAT_IDS ? process.env.ADMIN_CHAT_IDS.split(',').map(id => id.trim()) : [process.env.ADMIN_CHAT_ID!];
 const BACKEND_URL = process.env.BACKEND_URL;
 
 const automationTimers = new Map<number, NodeJS.Timeout>();
@@ -325,12 +325,16 @@ app.post('/api/payment-callback', async (req, res) => {
                     await sendTg(order.user_chat_id, `🎁 <b>Ваш промокод на ${order.amount_uc} UC:</b>\n\n<code>${codeEntry.code}</code>\n\nАктивируйте на Midasbuy.`);
                     const userInfo = await getUserInfo(order.user_chat_id);
                     const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
-                    await sendTg(ADMIN_CHAT_ID!, `✅ Код на ${order.amount_uc} UC выдан автоматически (Заказ #${order.id}) для ${username}`);
+                    for (const adminId of ADMIN_CHAT_IDS) {
+                        await sendTg(adminId, `✅ Код на ${order.amount_uc} UC выдан автоматически (Заказ #${order.id}) для ${username}`);
+                    }
                     await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
                 } else {
                     const userInfo = await getUserInfo(order.user_chat_id);
                     const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
-                    await sendTg(ADMIN_CHAT_ID!, `⚠️ <b>НЕТ КОДОВ!</b> Заказ #${order.id} на ${order.amount_uc} UC для ${username}. Выдайте вручную!`);
+                    for (const adminId of ADMIN_CHAT_IDS) {
+                        await sendTg(adminId, `⚠️ <b>НЕТ КОДОВ!</b> Заказ #${order.id} на ${order.amount_uc} UC для ${username}. Выдайте вручную!`);
+                    }
                 }
                 return;
             }
@@ -343,16 +347,22 @@ app.post('/api/payment-callback', async (req, res) => {
                     inline_keyboard: [[{ text: "✋ Взять на себя (Отменить бота)", callback_data: `hold_${order.id}` }]]
                 };
 
-                await sendTg(ADMIN_CHAT_ID!, adminMsg, keyboard);
+                for (const adminId of ADMIN_CHAT_IDS) {
+                    await sendTg(adminId, adminMsg, keyboard);
+                }
                 await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 5-15 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
 
                 const timer = setTimeout(async () => {
                     automationTimers.delete(order.id);
-                    await sendTg(ADMIN_CHAT_ID!, `🤖 Запускаю авто-выдачу заказа #${order.id}...`);
+                    for (const adminId of ADMIN_CHAT_IDS) {
+                        await sendTg(adminId, `🤖 Запускаю авто-выдачу заказа #${order.id}...`);
+                    }
                     try { 
                         await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id); 
                     } catch (e) { 
-                        await sendTg(ADMIN_CHAT_ID!, `❌ Ошибка бота в заказе #${order.id}`); 
+                        for (const adminId of ADMIN_CHAT_IDS) {
+                            await sendTg(adminId, `❌ Ошибка бота в заказе #${order.id}`);
+                        }
                     }
                 }, 2 * 60 * 1000); 
                 
@@ -363,7 +373,9 @@ app.post('/api/payment-callback', async (req, res) => {
                 const item = order.order_type === 'pp' ? 'ПП' : order.order_type === 'tickets' ? 'билетов' : order.order_type === 'skin' ? 'скина' : order.order_type === 'prime' ? 'Prime' : 'Prime Plus';
                 const adminMsg = `💰 <b>ЗАКАЗ ${item.toUpperCase()} #${order.id}</b>\n\n👤 <b>${username}</b>\n${order.order_type === 'skin' ? `🎭 Скин: <code>${order.uid_player}</code>\n` : `🆔 UID: <code>${order.uid_player}</code>\n👑 Сумма: <b>${order.amount_uc} ${item}</b>\n`}💵 Руб: ${order.price_rub}`;
                 const keyboard = { inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `done_${order.id}` }]] };
-                await sendTg(ADMIN_CHAT_ID!, adminMsg, keyboard);
+                for (const adminId of ADMIN_CHAT_IDS) {
+                    await sendTg(adminId, adminMsg, keyboard);
+                }
 
                 const userMsg = order.order_type === 'skin' ? `🎭 <b>Ваш скин будет выдан вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : order.order_type === 'prime' || order.order_type === 'prime_plus' ? `🎮 <b>Ваша подписка ${item} будет активирована вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : `👑 <b>${order.amount_uc} ${item}</b> будут выданы вручную в ближайшее время.\n\nЕсли возникнут вопросы, пишите в поддержку.`;
                 await sendTg(order.user_chat_id, userMsg);
@@ -372,7 +384,9 @@ app.post('/api/payment-callback', async (req, res) => {
                 const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
                 const adminMsg = `💰 <b>КРУПНЫЙ ЗАКАЗ #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: ${order.amount_uc} UC`;
                 const keyboard = { inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `done_${order.id}` }]] };
-                await sendTg(ADMIN_CHAT_ID!, adminMsg, keyboard);
+                for (const adminId of ADMIN_CHAT_IDS) {
+                    await sendTg(adminId, adminMsg, keyboard);
+                }
                 await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы вручную в ближайшее время на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
             }
         } else {
@@ -453,7 +467,9 @@ app.post('/api/manual-order', async (req, res) => {
             inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `manual_done_${user_chat_id}_${totalAmount}` }]]
         };
 
-        await sendTg(ADMIN_CHAT_ID!, adminMsg, keyboard);
+        for (const adminId of ADMIN_CHAT_IDS) {
+            await sendTg(adminId, adminMsg, keyboard);
+        }
 
         // Уведомление пользователю
         await sendTg(user_chat_id, `🛒 <b>Ваш заказ принят!</b>\n\n💎 ${totalAmount} UC будут выданы вручную в ближайшее время.\n\nЕсли возникнут вопросы, пишите в поддержку.`);
@@ -486,9 +502,9 @@ app.post('/api/bot-webhook', async (req, res) => {
         const text = message.text;
         chatId = message.chat.id.toString();
         console.log(`[WEBHOOK] Processing message: "${text}" from chat ${chatId}`);
-        console.log(`[WEBHOOK] Is admin? ${chatId === ADMIN_CHAT_ID}`);
+        console.log(`[WEBHOOK] Is admin? ${ADMIN_CHAT_IDS.includes(chatId)}`);
 
-        if (chatId === ADMIN_CHAT_ID) {
+        if (ADMIN_CHAT_IDS.includes(chatId)) {
             // Обработка команд для админа
             if (text === '/start') {
                 console.log(`[START] Processing /start for admin ${chatId}`);
@@ -639,7 +655,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                 
                 const keyboard = {
                     inline_keyboard: [[
-                        { text: "Открыть магазин", icon_custom_emoji_id: "5242557396416500126", style: "danger", web_app: { url: `${process.env.CLIENT_URL || 'https://ucmagaz.web.app'}` } }
+                        { text: "Открыть магазин", icon_custom_emoji_id: "5242557396416500126", style: "danger", web_app: { url: `${process.env.CLIENT_URL}` } }
                     ]]
                 };
                 
@@ -666,7 +682,7 @@ app.post('/api/bot-webhook', async (req, res) => {
     // Обработка фото скинов
     if (message && message.photo && message.caption) {
         const currentChatId = message.chat.id.toString();
-        if (currentChatId === ADMIN_CHAT_ID) {
+        if (ADMIN_CHAT_IDS.includes(currentChatId)) {
             const caption = message.caption.trim();
             if (caption.toLowerCase().startsWith('скин ')) {
                 const parts = caption.split(' ');
