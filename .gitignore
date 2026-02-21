@@ -6,8 +6,6 @@ node_modules/
 *.env.local
 server/.env
 
-# Сессии Playwright (чувствительные данные)
-server/sessions/
 
 # Логи и сборка
 server/logs/

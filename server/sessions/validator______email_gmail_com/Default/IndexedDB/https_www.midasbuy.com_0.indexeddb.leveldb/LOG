@@ -1,0 +1,25 @@
+2026/02/18-01:04:55.457 1c3841 Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/validator______email_gmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/18-01:04:55.457 1c3841 Recovering log #6
+2026/02/18-01:04:55.458 1c3841 Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/validator______email_gmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000006.log 
+2026/02/18-01:04:55.458 1c3841 Delete type=2 #5
+2026/02/18-01:04:58.925 1c3840 Level-0 table #11: started
+2026/02/18-01:04:58.927 1c3840 Level-0 table #11: 24466 bytes OK
+2026/02/18-01:04:58.929 1c3840 Delete type=0 #6
+2026/02/18-01:04:58.930 1c3840 Manual compaction at level-0 from '\x00\x04\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/18-01:04:59.183 1c3840 Level-0 table #13: started
+2026/02/18-01:04:59.184 1c3840 Level-0 table #13: 498 bytes OK
+2026/02/18-01:04:59.186 1c3840 Delete type=0 #10
+2026/02/18-01:04:59.186 1c3840 Manual compaction at level-0 from '\x00\x05\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x06\x00\x00\x00' @ 0 : 0; will stop at '\x00\x05\x00\x00\x05' @ 1092 : 0
+2026/02/18-01:04:59.186 1c3840 Compacting 1@0 + 1@1 files
+2026/02/18-01:04:59.188 1c3840 Generated table #14@0: 367 keys, 10638 bytes
+2026/02/18-01:04:59.188 1c3840 Compacted 1@0 + 1@1 files => 10638 bytes
+2026/02/18-01:04:59.189 1c3840 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/18-01:04:59.190 1c3840 Delete type=2 #13
+2026/02/18-01:04:59.190 1c3840 Manual compaction at level-0 from '\x00\x05\x00\x00\x05' @ 1092 : 0 .. '\x00\x06\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/18-01:05:01.091 1c3841 Compacting 1@1 + 1@2 files
+2026/02/18-01:05:01.095 1c3841 Generated table #15@1: 139 keys, 9366 bytes
+2026/02/18-01:05:01.095 1c3841 Compacted 1@1 + 1@2 files => 9366 bytes
+2026/02/18-01:05:01.096 1c3841 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/18-01:05:01.096 1c3841 Delete type=2 #14
+2026/02/18-01:05:01.096 1c3841 Delete type=2 #11
+2026/02/18-01:05:01.096 1c3841 Delete type=2 #8

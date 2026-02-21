@@ -1,0 +1,26 @@
+2026/02/17-15:54:12.222 17d204 Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/main_account/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/17-15:54:12.223 17d204 Recovering log #47
+2026/02/17-15:54:12.224 17d204 Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/main_account/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000047.log 
+2026/02/17-15:54:12.224 17d204 Delete type=2 #43
+2026/02/17-15:54:12.224 17d204 Delete type=2 #49
+2026/02/17-15:54:19.422 17d213 Level-0 table #53: started
+2026/02/17-15:54:19.424 17d213 Level-0 table #53: 21154 bytes OK
+2026/02/17-15:54:19.425 17d213 Delete type=0 #47
+2026/02/17-15:54:19.426 17d200 Manual compaction at level-0 from '\x00\x11\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x12\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/17-15:54:19.454 17d1ff Level-0 table #55: started
+2026/02/17-15:54:19.455 17d1ff Level-0 table #55: 503 bytes OK
+2026/02/17-15:54:19.456 17d1ff Delete type=0 #52
+2026/02/17-15:54:19.457 17d1ff Manual compaction at level-0 from '\x00\x12\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x13\x00\x00\x00' @ 0 : 0; will stop at '\x00\x12\x00\x00\x05' @ 6140 : 0
+2026/02/17-15:54:19.457 17d1ff Compacting 1@0 + 1@1 files
+2026/02/17-15:54:19.459 17d1ff Generated table #56@0: 321 keys, 9319 bytes
+2026/02/17-15:54:19.460 17d1ff Compacted 1@0 + 1@1 files => 9319 bytes
+2026/02/17-15:54:19.461 17d1ff compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/17-15:54:19.461 17d1ff Delete type=2 #55
+2026/02/17-15:54:19.461 17d1ff Manual compaction at level-0 from '\x00\x12\x00\x00\x05' @ 6140 : 0 .. '\x00\x13\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/17-15:54:23.752 17d1ff Compacting 1@1 + 1@2 files
+2026/02/17-15:54:23.759 17d1ff Generated table #57@1: 463 keys, 32436 bytes
+2026/02/17-15:54:23.759 17d1ff Compacted 1@1 + 1@2 files => 32436 bytes
+2026/02/17-15:54:23.761 17d1ff compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/17-15:54:23.762 17d1ff Delete type=2 #50
+2026/02/17-15:54:23.762 17d1ff Delete type=2 #56
+2026/02/17-15:54:23.762 17d1ff Delete type=2 #53

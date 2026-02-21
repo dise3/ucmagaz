@@ -1,0 +1,26 @@
+2026/02/18-01:10:31.278 1c4c34 Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/validator_MidasBuyMy7_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/18-01:10:31.279 1c4c34 Recovering log #12
+2026/02/18-01:10:31.280 1c4c34 Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/validator_MidasBuyMy7_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000012.log 
+2026/02/18-01:10:31.280 1c4c34 Delete type=2 #14
+2026/02/18-01:10:31.280 1c4c34 Delete type=2 #8
+2026/02/18-01:10:37.747 1c4c34 Level-0 table #18: started
+2026/02/18-01:10:37.749 1c4c34 Level-0 table #18: 25710 bytes OK
+2026/02/18-01:10:37.750 1c4c34 Delete type=0 #12
+2026/02/18-01:10:37.751 1c4c34 Manual compaction at level-0 from '\x00\x06\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x07\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/18-01:10:37.957 1c4c33 Level-0 table #20: started
+2026/02/18-01:10:37.958 1c4c33 Level-0 table #20: 499 bytes OK
+2026/02/18-01:10:37.960 1c4c33 Delete type=0 #17
+2026/02/18-01:10:37.960 1c4c33 Manual compaction at level-0 from '\x00\x07\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x08\x00\x00\x00' @ 0 : 0; will stop at '\x00\x07\x00\x00\x05' @ 2120 : 0
+2026/02/18-01:10:37.960 1c4c33 Compacting 1@0 + 1@1 files
+2026/02/18-01:10:37.962 1c4c33 Generated table #21@0: 397 keys, 10911 bytes
+2026/02/18-01:10:37.962 1c4c33 Compacted 1@0 + 1@1 files => 10911 bytes
+2026/02/18-01:10:37.963 1c4c33 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/18-01:10:37.964 1c4c33 Delete type=2 #20
+2026/02/18-01:10:37.964 1c4c33 Manual compaction at level-0 from '\x00\x07\x00\x00\x05' @ 2120 : 0 .. '\x00\x08\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/18-01:10:38.752 1c4c35 Compacting 1@1 + 1@2 files
+2026/02/18-01:10:38.755 1c4c35 Generated table #22@1: 205 keys, 13618 bytes
+2026/02/18-01:10:38.755 1c4c35 Compacted 1@1 + 1@2 files => 13618 bytes
+2026/02/18-01:10:38.756 1c4c35 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/18-01:10:38.757 1c4c35 Delete type=2 #15
+2026/02/18-01:10:38.757 1c4c35 Delete type=2 #18
+2026/02/18-01:10:38.757 1c4c35 Delete type=2 #21

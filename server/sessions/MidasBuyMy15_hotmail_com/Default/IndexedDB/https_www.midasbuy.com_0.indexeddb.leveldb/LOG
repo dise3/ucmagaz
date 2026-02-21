@@ -1,0 +1,24 @@
+2026/02/21-01:06:33.580 5d016 Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/MidasBuyMy15_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/21-01:06:33.581 5d016 Recovering log #4
+2026/02/21-01:06:33.581 5d016 Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/MidasBuyMy15_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000004.log 
+2026/02/21-01:06:37.789 5d02a Level-0 table #8: started
+2026/02/21-01:06:37.793 5d02a Level-0 table #8: 22634 bytes OK
+2026/02/21-01:06:37.795 5d02a Delete type=0 #4
+2026/02/21-01:06:37.796 5d019 Manual compaction at level-0 from '\x00\x03\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x04\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/21-01:06:37.797 5d019 Level-0 table #10: started
+2026/02/21-01:06:37.801 5d019 Level-0 table #10: 500 bytes OK
+2026/02/21-01:06:37.803 5d019 Delete type=0 #7
+2026/02/21-01:06:37.804 5d019 Manual compaction at level-0 from '\x00\x04\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at '\x00\x04\x00\x00\x05' @ 953 : 0
+2026/02/21-01:06:37.804 5d019 Compacting 1@0 + 1@1 files
+2026/02/21-01:06:37.902 5d019 Generated table #11@0: 341 keys, 10388 bytes
+2026/02/21-01:06:37.902 5d019 Compacted 1@0 + 1@1 files => 10388 bytes
+2026/02/21-01:06:37.932 5d019 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/21-01:06:37.934 5d019 Delete type=2 #10
+2026/02/21-01:06:37.934 5d017 Manual compaction at level-0 from '\x00\x04\x00\x00\x05' @ 953 : 0 .. '\x00\x05\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/21-01:06:51.955 5d017 Compacting 1@1 + 1@2 files
+2026/02/21-01:06:51.959 5d017 Generated table #12@1: 131 keys, 8610 bytes
+2026/02/21-01:06:51.959 5d017 Compacted 1@1 + 1@2 files => 8610 bytes
+2026/02/21-01:06:51.960 5d017 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/21-01:06:51.960 5d017 Delete type=2 #11
+2026/02/21-01:06:51.960 5d017 Delete type=2 #5
+2026/02/21-01:06:51.960 5d017 Delete type=2 #8

@@ -1,0 +1,24 @@
+2026/02/17-15:55:32.646 17d700 Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/main_account/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/17-15:55:32.647 17d700 Recovering log #54
+2026/02/17-15:55:32.649 17d700 Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/main_account/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000054.log 
+2026/02/17-15:55:39.640 17d6ef Level-0 table #60: started
+2026/02/17-15:55:39.642 17d6ef Level-0 table #60: 20771 bytes OK
+2026/02/17-15:55:39.644 17d6ef Delete type=0 #54
+2026/02/17-15:55:39.647 17d6ec Manual compaction at level-0 from '\x00\x13\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x14\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/17-15:55:39.706 17d6ec Level-0 table #62: started
+2026/02/17-15:55:39.707 17d6ec Level-0 table #62: 544 bytes OK
+2026/02/17-15:55:39.708 17d6ec Delete type=0 #59
+2026/02/17-15:55:39.709 17d6ec Manual compaction at level-0 from '\x00\x14\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x15\x00\x00\x00' @ 0 : 0; will stop at '\x00\x14\x00\x00\x05' @ 6823 : 1
+2026/02/17-15:55:39.709 17d6ec Compacting 1@0 + 1@1 files
+2026/02/17-15:55:39.710 17d6ec Generated table #63@0: 323 keys, 9200 bytes
+2026/02/17-15:55:39.711 17d6ec Compacted 1@0 + 1@1 files => 9200 bytes
+2026/02/17-15:55:39.712 17d6ec compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/17-15:55:39.712 17d6ec Delete type=2 #62
+2026/02/17-15:55:39.712 17d6ec Manual compaction at level-0 from '\x00\x14\x00\x00\x05' @ 6823 : 1 .. '\x00\x15\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/17-15:55:43.136 17d700 Compacting 1@1 + 1@2 files
+2026/02/17-15:55:43.140 17d700 Generated table #64@1: 507 keys, 35492 bytes
+2026/02/17-15:55:43.140 17d700 Compacted 1@1 + 1@2 files => 35492 bytes
+2026/02/17-15:55:43.141 17d700 compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/17-15:55:43.141 17d700 Delete type=2 #57
+2026/02/17-15:55:43.141 17d700 Delete type=2 #63
+2026/02/17-15:55:43.141 17d700 Delete type=2 #60

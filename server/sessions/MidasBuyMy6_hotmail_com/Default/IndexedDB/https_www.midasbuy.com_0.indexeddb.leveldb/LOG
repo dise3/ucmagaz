@@ -1,0 +1,7 @@
+2026/02/21-00:31:29.831 5949c Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/MidasBuyMy6_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/21-00:31:29.831 5949c Recovering log #65
+2026/02/21-00:31:29.833 5949c Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/MidasBuyMy6_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000065.log 
+2026/02/21-00:31:34.713 594b3 Level-0 table #71: started
+2026/02/21-00:31:34.717 594b3 Level-0 table #71: 30024 bytes OK
+2026/02/21-00:31:34.726 594b3 Delete type=0 #65
+2026/02/21-00:31:34.726 5949d Manual compaction at level-0 from '\x00\x15\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x16\x00\x00\x00' @ 0 : 0; will stop at (end)

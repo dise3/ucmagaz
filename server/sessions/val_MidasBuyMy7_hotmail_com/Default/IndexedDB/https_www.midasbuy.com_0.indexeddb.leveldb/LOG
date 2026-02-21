@@ -1,0 +1,24 @@
+2026/02/18-01:19:37.251 1c6bcb Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/val_MidasBuyMy7_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/18-01:19:37.251 1c6bcb Recovering log #17
+2026/02/18-01:19:37.252 1c6bcb Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/val_MidasBuyMy7_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000017.log 
+2026/02/18-01:19:42.554 1c6be9 Level-0 table #22: started
+2026/02/18-01:19:42.572 1c6be9 Level-0 table #22: 25663 bytes OK
+2026/02/18-01:19:42.575 1c6be9 Delete type=0 #17
+2026/02/18-01:19:42.575 1c6bca Manual compaction at level-0 from '\x00\x07\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x08\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/18-01:19:42.641 1c6be9 Level-0 table #24: started
+2026/02/18-01:19:42.642 1c6be9 Level-0 table #24: 499 bytes OK
+2026/02/18-01:19:42.644 1c6be9 Delete type=0 #21
+2026/02/18-01:19:42.644 1c6bca Manual compaction at level-0 from '\x00\x08\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x09\x00\x00\x00' @ 0 : 0; will stop at '\x00\x08\x00\x00\x05' @ 2889 : 0
+2026/02/18-01:19:42.645 1c6bca Compacting 1@0 + 1@1 files
+2026/02/18-01:19:42.647 1c6bca Generated table #25@0: 390 keys, 10805 bytes
+2026/02/18-01:19:42.647 1c6bca Compacted 1@0 + 1@1 files => 10805 bytes
+2026/02/18-01:19:42.648 1c6bca compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/18-01:19:42.649 1c6bca Delete type=2 #24
+2026/02/18-01:19:42.649 1c6bca Manual compaction at level-0 from '\x00\x08\x00\x00\x05' @ 2889 : 0 .. '\x00\x09\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/18-01:19:43.313 1c6bca Compacting 1@1 + 1@2 files
+2026/02/18-01:19:43.315 1c6bca Generated table #26@1: 255 keys, 16991 bytes
+2026/02/18-01:19:43.315 1c6bca Compacted 1@1 + 1@2 files => 16991 bytes
+2026/02/18-01:19:43.316 1c6bca compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/18-01:19:43.317 1c6bca Delete type=2 #25
+2026/02/18-01:19:43.317 1c6bca Delete type=2 #19
+2026/02/18-01:19:43.317 1c6bca Delete type=2 #22

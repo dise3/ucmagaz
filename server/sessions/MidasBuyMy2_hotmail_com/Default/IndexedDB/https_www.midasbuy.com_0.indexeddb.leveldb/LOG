@@ -1,0 +1,26 @@
+2026/02/21-00:32:28.451 596cc Reusing MANIFEST /home/dise33/Desktop/ucmagaz/server/sessions/MidasBuyMy2_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/02/21-00:32:28.452 596cc Recovering log #17
+2026/02/21-00:32:28.453 596cc Reusing old log /home/dise33/Desktop/ucmagaz/server/sessions/MidasBuyMy2_hotmail_com/Default/IndexedDB/https_www.midasbuy.com_0.indexeddb.leveldb/000017.log 
+2026/02/21-00:32:28.453 596cc Delete type=2 #15
+2026/02/21-00:32:28.453 596cc Delete type=2 #18
+2026/02/21-00:32:33.082 596bb Level-0 table #22: started
+2026/02/21-00:32:33.083 596bb Level-0 table #22: 22289 bytes OK
+2026/02/21-00:32:33.085 596bb Delete type=0 #17
+2026/02/21-00:32:33.085 596b7 Manual compaction at level-0 from '\x00\x07\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x08\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/21-00:32:33.086 596b7 Level-0 table #24: started
+2026/02/21-00:32:33.087 596b7 Level-0 table #24: 495 bytes OK
+2026/02/21-00:32:33.089 596b7 Delete type=0 #21
+2026/02/21-00:32:33.089 596b7 Manual compaction at level-0 from '\x00\x08\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x09\x00\x00\x00' @ 0 : 0; will stop at '\x00\x08\x00\x00\x05' @ 1959 : 0
+2026/02/21-00:32:33.090 596b7 Compacting 1@0 + 1@1 files
+2026/02/21-00:32:33.092 596b7 Generated table #25@0: 349 keys, 10226 bytes
+2026/02/21-00:32:33.092 596b7 Compacted 1@0 + 1@1 files => 10226 bytes
+2026/02/21-00:32:33.093 596b7 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/02/21-00:32:33.093 596b7 Delete type=2 #24
+2026/02/21-00:32:33.094 596b7 Manual compaction at level-0 from '\x00\x08\x00\x00\x05' @ 1959 : 0 .. '\x00\x09\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/02/21-00:32:47.258 596bb Compacting 1@1 + 1@2 files
+2026/02/21-00:32:47.259 596bb Generated table #26@1: 193 keys, 13107 bytes
+2026/02/21-00:32:47.259 596bb Compacted 1@1 + 1@2 files => 13107 bytes
+2026/02/21-00:32:47.261 596bb compacted to: files[ 0 0 1 0 0 0 0 ]
+2026/02/21-00:32:47.261 596bb Delete type=2 #25
+2026/02/21-00:32:47.261 596bb Delete type=2 #19
+2026/02/21-00:32:47.261 596bb Delete type=2 #22
