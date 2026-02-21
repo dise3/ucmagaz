@@ -94,19 +94,33 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   const [error, setError] = useState('');
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [primePrices, setPrimePrices] = useState<any>(null);
+  const [settings, setSettings] = useState<any>(null);
 
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
   const isMultiCode = pack.items && pack.items.length > 0;
   const items = pack.items || [];
 
   useEffect(() => {
+    const fetchData = async () => {
+      const [primeRes, settingsRes] = await Promise.all([
+        fetch(`${VITE_API_NGROK}/api/prime-prices`, {
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'tuna-skip-browser-warning': 'true'
+          }
+        }),
+        fetch(`${VITE_API_NGROK}/api/settings`, {
+          headers: { 
+            'ngrok-skip-browser-warning': 'true',
+            'tuna-skip-browser-warning': 'true'
+          }
+        })
+      ]);
+      setPrimePrices(await primeRes.json());
+      setSettings(await settingsRes.json());
+    };
     if (pack.type === 'pp' || pack.type === 'tickets' || pack.type === 'prime' || pack.type === 'prime_plus') {
-      fetch(`${VITE_API_NGROK}/api/prime-prices`, {
-        headers: { 
-          'ngrok-skip-browser-warning': 'true',
-          'tuna-skip-browser-warning': 'true'
-        }
-      }).then(res => res.json()).then(setPrimePrices);
+      fetchData();
     }
   }, [pack.type, VITE_API_NGROK]);
 
@@ -129,19 +143,21 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
 
   const getTotalPrice = (): number => {
     if (pack.type === 'pp') {
-      if (!primePrices) return 0;
-      const pricePer10000 = paymentMethod === 'sbp' ? primePrices.prime_prices[0].price_rub_sbp : primePrices.prime_prices[0].price_rub_card;
-      return Math.ceil(pricePer10000 * ((pack.amount || 0) / 10000));
+      if (!settings) return 0;
+      const base = (settings.pp_price_usd * ((pack.amount || 0) / 10000)) * settings.usd_rate + (settings.pp_markup_rub || 0);
+      return calculatePriceWithCommission(Math.ceil(base * (1 + settings.fee_percent)), paymentMethod);
     } else if (pack.type === 'tickets') {
-      if (!primePrices) return 0;
-      const pricePer100 = paymentMethod === 'sbp' ? primePrices.ticket_prices[0].price_rub_sbp : primePrices.ticket_prices[0].price_rub_card;
-      return Math.ceil(pricePer100 * ((pack.amount || 0) / 100));
+      if (!settings) return 0;
+      const base = (settings.ticket_price_usd * ((pack.amount || 0) / 100)) * settings.usd_rate + (settings.ticket_markup_rub || 0);
+      return calculatePriceWithCommission(Math.ceil(base * (1 + settings.fee_percent)), paymentMethod);
     } else if (pack.type === 'prime') {
       if (!primePrices) return pack.price || 0;
-      return paymentMethod === 'sbp' ? primePrices.prime_item_prices[0].price_rub_sbp : primePrices.prime_item_prices[0].price_rub_card;
+      const item = primePrices.find((p: any) => p.id === 'prime');
+      return item ? calculatePriceWithCommission(item.price, paymentMethod) : pack.price || 0;
     } else if (pack.type === 'prime_plus') {
       if (!primePrices) return pack.price || 0;
-      return paymentMethod === 'sbp' ? primePrices.prime_plus_item_prices[0].price_rub_sbp : primePrices.prime_plus_item_prices[0].price_rub_card;
+      const item = primePrices.find((p: any) => p.id === 'prime_plus');
+      return item ? calculatePriceWithCommission(item.price, paymentMethod) : pack.price || 0;
     } else if (pack.type === 'skin') {
       return pack.price || 0; // Скины без комиссии
     } else if (isMultiCode) {
