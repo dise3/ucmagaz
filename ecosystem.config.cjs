@@ -7,8 +7,8 @@ module.exports = {
     {
       name: 'ucmagaz-server',
       cwd: './server',
-      script: 'npx',
-      args: 'ts-node --esm server.ts',
+      script: 'npm',
+      args: 'run start',
       interpreter: 'none',
       instances: 1,
       autorestart: true,
