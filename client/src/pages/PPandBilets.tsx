@@ -78,12 +78,12 @@ const Prime: React.FC<PrimeProps> = ({ onBack, onSelect }) => {
                     </div>
 
                     {/* Selector */}
-                    <div className="flex items-center justify-between bg-black/40 rounded-2xl p-2 border border-white/5">
-                        <button onClick={() => handleUCChange(-10000)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60"><Minus /></button>
+                    <div className="flex items-center justify-between bg-black/40 rounded-2xl p-2 border border-white/5 select-none">
+                        <button onPointerDown={() => handleUCChange(-10000)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60 touch-manipulation"><Minus /></button>
                         <div className="text-center">
                             <span className="text-2xl font-black text-white italic">{amountUC.toLocaleString()}</span>
                         </div>
-                        <button onClick={() => handleUCChange(10000)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60"><Plus /></button>
+                        <button onPointerDown={() => handleUCChange(10000)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60 touch-manipulation"><Plus /></button>
                     </div>
 
                     {/* Buy Button */}
@@ -110,13 +110,13 @@ const Prime: React.FC<PrimeProps> = ({ onBack, onSelect }) => {
                     </div>
 
                     {/* Selector */}
-                    <div className="flex items-center justify-between bg-black/40 rounded-2xl p-2 border border-white/5">
-                        <button onClick={() => handleTicketChange(-100)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60"><Minus /></button>
+                    <div className="flex items-center justify-between bg-black/40 rounded-2xl p-2 border border-white/5 select-none">
+                        <button onPointerDown={() => handleTicketChange(-100)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60 touch-manipulation"><Minus /></button>
                         <div className="text-center">
                             <span className="text-2xl font-black text-white italic">{amountTickets.toLocaleString()}</span>
                             <span className="ml-2 text-amber-500 font-bold text-xs uppercase">ШТ</span>
                         </div>
-                        <button onClick={() => handleTicketChange(100)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60"><Plus /></button>
+                        <button onPointerDown={() => handleTicketChange(100)} className="w-12 h-12 bg-white/5 rounded-xl flex items-center justify-center active:scale-90 transition-all text-white/60 touch-manipulation"><Plus /></button>
                     </div>
 
                     {/* Buy Button */}
