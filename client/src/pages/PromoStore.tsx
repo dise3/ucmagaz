@@ -20,7 +20,7 @@ const PromoStore: React.FC<PromoStoreProps> = ({ onBack }) => {
     useEffect(() => {
         const fetchProducts = async () => {
             try {
-                const response = await fetch(`${VITE_API_NGROK}/api/products`, {
+                const response = await fetch(`${VITE_API_NGROK}/api/products?store=promo`, {
                     headers: {
                         'ngrok-skip-browser-warning': 'true',
                         'Accept': 'application/json',

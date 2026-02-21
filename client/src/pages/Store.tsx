@@ -40,29 +40,20 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         };
 
         const [primeRes, ucRes] = await Promise.all([
-          fetch(`${VITE_API_NGROK}/api/prime-prices`, { headers }),
-          fetch(`${VITE_API_NGROK}/api/products`, { headers })
+          fetch(`${VITE_API_NGROK}/api/prime-prices?store=store`, { headers }),
+          fetch(`${VITE_API_NGROK}/api/products?store=store`, { headers })
         ]);
 
         const primePrices = await primeRes.json();
         const ucData = await ucRes.json();
         
-        const formattedPrimePacks = [
-          {
-            id: 'prime',
-            title: 'Prime',
-            price: primePrices.prime_item_prices[0].price_rub_sbp,
-            image: '/prime.jpg',
-            type: 'prime' as const
-          },
-          {
-            id: 'prime_plus',
-            title: 'Prime Plus',
-            price: primePrices.prime_plus_item_prices[0].price_rub_sbp,
-            image: '/prime-plus.jpg',
-            type: 'prime_plus' as const
-          }
-        ];
+        const formattedPrimePacks = primePrices.map((item: any) => ({
+          id: item.id,
+          title: item.title,
+          price: item.price,
+          image: item.image_url,
+          type: item.id as 'prime' | 'prime_plus'
+        }));
         
         const formattedUcPacks = ucData.map((p: any) => ({
           id: p.id,

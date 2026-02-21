@@ -155,18 +155,21 @@ app.get('/api/test-activate', async (req, res) => {
 });
 
 // 1.5. Получение товаров Prime (Prime и Prime Plus)
-app.get('/api/prime-products', async (req, res) => {
+app.get('/api/prime-prices', async (req, res) => {
     try {
+        const { store } = req.query; // 'store' или 'promo'
         const { data: settings } = await supabase.from('settings').select('*').single();
         
         if (!settings) return res.status(500).json({ error: 'DB Data not found' });
 
+        const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate) : (settings.usd_rate_store || settings.usd_rate);
+
         // Расчет цен для Prime (без комиссии, как скины)
-        const primeBasePrice = (settings.prime_price_usd || 0.05) * settings.usd_rate + (settings.prime_markup_rub || 0);
+        const primeBasePrice = (settings.prime_price_usd || 0.05) * usdRate + (settings.prime_markup_rub || 0);
         const primeFinalPrice = Math.ceil(primeBasePrice);
         
         // Расчет цен для Prime Plus (без комиссии, как скины)
-        const primePlusBasePrice = (settings.prime_plus_price_usd || 0.08) * settings.usd_rate + (settings.prime_plus_markup_rub || 0);
+        const primePlusBasePrice = (settings.prime_plus_price_usd || 0.08) * usdRate + (settings.prime_plus_markup_rub || 0);
         const primePlusFinalPrice = Math.ceil(primePlusBasePrice);
 
         const primeProducts = [
@@ -193,14 +196,17 @@ app.get('/api/prime-products', async (req, res) => {
 // 2. Получение товаров (UC по ID)
 app.get('/api/products', async (req, res) => {
     try {
+        const { store } = req.query; // 'store' или 'promo'
         const { data: settings } = await supabase.from('settings').select('*').single();
         const { data: products } = await supabase.from('products').select('*').order('sort_order');
         
         if (!settings || !products) return res.status(500).json({ error: 'DB Data not found' });
 
+        const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate) : (settings.usd_rate_store || settings.usd_rate);
+
         const list = products.map(p => {
             const productMarkup = p.markup_rub || 0;
-            const finalPrice = Math.ceil(((p.price_usd * settings.usd_rate) + productMarkup) * (1 + settings.fee_percent));
+            const finalPrice = Math.ceil(((p.price_usd * usdRate) + productMarkup) * (1 + settings.fee_percent));
             
             return {
                 id: p.id,
@@ -557,10 +563,16 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, error ? `❌ Ошибка` : `✅ Все RESERVED коды освобождены.`);
             }
 
-            if (text.toLowerCase().startsWith('курс ')) {
+            if (text.toLowerCase().startsWith('курс_store ')) {
                 const rate = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ usd_rate: rate }).eq('id', 1);
-                await sendTg(chatId, `📉 Курс обновлен: ${rate} руб/$`);
+                await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
+                await sendTg(chatId, `📉 Курс Store обновлен: ${rate} руб/$`);
+            }
+
+            if (text.toLowerCase().startsWith('курс_promo ')) {
+                const rate = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
+                await sendTg(chatId, `📉 Курс Promo обновлен: ${rate} руб/$`);
             }
 
             if (text.toLowerCase().startsWith('price_usd ')) {
