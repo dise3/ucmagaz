@@ -163,6 +163,7 @@ app.get('/api/prime-prices', async (req, res) => {
         if (!settings) return res.status(500).json({ error: 'DB Data not found' });
 
         const usdRate = store === 'promo' ? settings.usd_rate_promo : settings.usd_rate_store;
+        console.log('Prime prices usdRate:', usdRate, 'store:', store);
 
         // Расчет цен для Prime (без комиссии, как скины)
         const primeBasePrice = (settings.prime_price_usd || 0.05) * usdRate + (settings.prime_markup_rub || 0);
@@ -189,6 +190,7 @@ app.get('/api/prime-prices', async (req, res) => {
             }
         ];
         
+        console.log('Prime products:', primeProducts);
         res.json(primeProducts);
     } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
