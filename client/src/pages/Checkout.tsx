@@ -93,7 +93,6 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [primePrices, setPrimePrices] = useState<any>(null);
   const [settings, setSettings] = useState<any>(null);
 
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
@@ -102,21 +101,12 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const [primeRes, settingsRes] = await Promise.all([
-        fetch(`${VITE_API_NGROK}/api/prime-prices`, {
-          headers: { 
-            'ngrok-skip-browser-warning': 'true',
-            'tuna-skip-browser-warning': 'true'
-          }
-        }),
-        fetch(`${VITE_API_NGROK}/api/settings`, {
-          headers: { 
-            'ngrok-skip-browser-warning': 'true',
-            'tuna-skip-browser-warning': 'true'
-          }
-        })
-      ]);
-      setPrimePrices(await primeRes.json());
+      const settingsRes = await fetch(`${VITE_API_NGROK}/api/settings`, {
+        headers: { 
+          'ngrok-skip-browser-warning': 'true',
+          'tuna-skip-browser-warning': 'true'
+        }
+      });
       setSettings(await settingsRes.json());
     };
     if (pack.type === 'pp' || pack.type === 'tickets' || pack.type === 'prime' || pack.type === 'prime_plus') {
@@ -151,13 +141,9 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       const base = (settings.ticket_price_usd * ((pack.amount || 0) / 100)) * settings.usd_rate + (settings.ticket_markup_rub || 0);
       return calculatePriceWithCommission(Math.ceil(base * (1 + settings.fee_percent)), paymentMethod);
     } else if (pack.type === 'prime') {
-      if (!primePrices) return pack.price || 0;
-      const item = primePrices.find((p: any) => p.id === 'prime');
-      return item ? calculatePriceWithCommission(item.price, paymentMethod) : pack.price || 0;
+      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     } else if (pack.type === 'prime_plus') {
-      if (!primePrices) return pack.price || 0;
-      const item = primePrices.find((p: any) => p.id === 'prime_plus');
-      return item ? calculatePriceWithCommission(item.price, paymentMethod) : pack.price || 0;
+      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     } else if (pack.type === 'skin') {
       return pack.price || 0; // Скины без комиссии
     } else if (isMultiCode) {
