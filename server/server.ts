@@ -823,6 +823,7 @@ app.post('/api/bot-webhook', async (req, res) => {
             };
 
             await editTg(currentChatId, msgId, commandsText, keyboard);
+        }
 
         if (data === 'admin_manage') {
             const keyboard = {
