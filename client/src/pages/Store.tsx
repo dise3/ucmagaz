@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, Info } from 'lucide-react';
+import { ChevronLeft, Info, ChevronDown } from 'lucide-react';
 
 interface Pack {
   id: number | string;
@@ -56,7 +56,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           price: item.periods && item.periods.length > 0 ? Number(item.periods[0].price) : 0,
           image: item.image_url,
           type: item.id as 'prime' | 'prime_plus',
-          periods: item.periods
+          periods: item.periods // Массив периодов
         }));
         
         const formattedUcPacks = ucData.map((p: any) => ({
@@ -69,6 +69,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         
         setPacks([...formattedPrimePacks, ...formattedUcPacks]);
 
+        // Инициализируем выбранные периоды для Prime товаров
         const initialPeriods: { [key: string]: { months: number; price: number } } = {};
         primePrices.forEach((item: any) => {
           if (item.periods && item.periods.length > 0 && item.periods[0]) {
@@ -86,6 +87,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
     fetchProducts();
   }, [VITE_API_NGROK]);
 
+  // Обработчик изменения периода
   const handlePeriodChange = (productId: string, months: number, periods: { months: number; price: number }[]) => {
     const selected = periods.find(p => p.months === months);
     if (selected) {
@@ -162,13 +164,17 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                 {activeTooltip === String(pack.id) && (
                   <div 
                     className={`absolute bottom-full mb-3 w-52 z-[100] animate-in fade-in zoom-in-95 duration-200 
-                      ${pack.type === 'prime' ? 'left-0 origin-bottom-left' : 'right-0 origin-bottom-right'}`}
+                      ${pack.type === 'prime' 
+                        ? 'left-0 origin-bottom-left'   // Обычный Прайм раскрывается ВПРАВО
+                        : 'right-0 origin-bottom-right' // Прайм Плюс раскрывается ВЛЕВО
+                      }`}
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="relative bg-[#1a1a1a] border border-white/20 rounded-2xl p-3 shadow-[0_20px_50px_rgba(0,0,0,0.7)] backdrop-blur-2xl">
                       <p className="text-[11px] leading-relaxed text-white/90 font-medium whitespace-pre-line">
                         {getPrimeBenefits(pack.type || '')}
                       </p>
+                      {/* Динамическая стрелочка под иконку */}
                       <div className={`absolute -bottom-1 w-2 h-2 bg-[#1a1a1a] border-r border-b border-white/20 transform rotate-45 
                         ${pack.type === 'prime' ? 'left-2.5' : 'right-2.5'}`} 
                       />
@@ -189,32 +195,23 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                   : `${pack.amount?.toLocaleString('ru-RU')} UC`}
               </div>
 
-              {/* Улучшенный селектор периодов (Tabs) */}
+              {/* Period Selector - Styled Harmony */}
               {pack.periods && pack.periods.length > 1 && (
-                <div 
-                  className="flex p-1 bg-black/40 backdrop-blur-md rounded-xl border border-white/5 w-full mt-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {pack.periods.map((period) => {
-                    const isSelected = selectedPeriods[pack.id]?.months === period.months;
-                    return (
-                      <button
-                        key={period.months}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.Telegram?.WebApp?.HapticFeedback.selectionChanged();
-                          handlePeriodChange(String(pack.id), period.months, pack.periods!);
-                        }}
-                        className={`relative flex-1 py-1.5 text-[10px] font-bold transition-all duration-300 rounded-lg uppercase tracking-tight
-                          ${isSelected ? 'text-white' : 'text-white/30'}`}
-                      >
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-white/10 rounded-lg animate-in fade-in zoom-in-95 duration-200" />
-                        )}
-                        <span className="relative z-10">{period.months} мес</span>
-                      </button>
-                    );
-                  })}
+                <div className="relative w-full" onClick={(e) => e.stopPropagation()}>
+                  <select
+                    value={selectedPeriods[pack.id]?.months?.toString() || (pack.periods[0]?.months?.toString() || '')}
+                    onChange={(e) => {
+                      handlePeriodChange(String(pack.id), parseInt(e.target.value), pack.periods!);
+                    }}
+                    className="w-full appearance-none bg-white/5 border border-white/10 rounded-xl py-1.5 pl-3 pr-8 text-[11px] font-bold text-white/60 outline-none focus:border-white/20 transition-all uppercase tracking-tight"
+                  >
+                    {pack.periods.map(period => (
+                      <option key={period.months} value={period.months.toString()} className="bg-[#1a1a1a] text-white">
+                        {period.months === 1 ? '1 месяц' : `${period.months} месяца`}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown size={12} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-white/20 pointer-events-none" />
                 </div>
               )}
 
@@ -225,7 +222,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                   <div className="relative bg-[#0f0f0f] py-2.5 rounded-[14px] flex items-center justify-center overflow-hidden">
                     <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine" />
                     <span className="relative z-10 bg-gradient-to-b from-[#f3d092] via-[#d4af37] to-[#8a6d3b] bg-clip-text text-transparent font-black text-[15px] uppercase tracking-wider">
-                      {(selectedPeriods[pack.id]?.price || pack.price).toLocaleString('ru-RU')} ₽
+                      {Number(selectedPeriods[pack.id]?.price || pack.price || 0).toLocaleString('ru-RU')} ₽
                     </span>
                   </div>
                 </div>
