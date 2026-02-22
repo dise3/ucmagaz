@@ -53,7 +53,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const formattedPrimePacks = primePrices.map((item: any) => ({
           id: item.id,
           title: item.title,
-          price: item.periods ? item.periods[0].price : 0, // Дефолтная цена из первого периода
+          price: item.periods && item.periods.length > 0 ? item.periods[0].price : 0,
           image: item.image_url,
           type: item.id as 'prime' | 'prime_plus',
           periods: item.periods // Массив периодов
@@ -62,7 +62,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const formattedUcPacks = ucData.map((p: any) => ({
           id: p.id,
           amount: p.amount_uc,
-          price: p.price,
+          price: p.price || 0,
           image: p.image_url,
           type: 'uc' as const
         }));
@@ -72,7 +72,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         // Инициализируем выбранные периоды для Prime товаров
         const initialPeriods: { [key: string]: { months: number; price: number } } = {};
         primePrices.forEach((item: any) => {
-          if (item.periods && item.periods.length > 0) {
+          if (item.periods && item.periods.length > 0 && item.periods[0]) {
             initialPeriods[item.id] = item.periods[0];
           }
         });
@@ -189,7 +189,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
               {/* Period Selector for Prime */}
               {pack.periods && pack.periods.length > 1 && (
                 <select
-                  value={selectedPeriods[pack.id]?.months || pack.periods[0].months}
+                  value={selectedPeriods[pack.id]?.months || (pack.periods[0]?.months || '')}
                   onChange={(e) => {
                     e.stopPropagation();
                     const selected = pack.periods!.find(p => p.months === parseInt(e.target.value));
