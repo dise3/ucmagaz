@@ -3,11 +3,11 @@ dotenv.config({ path: '../.env' });
 console.log('dotenv loaded');
 
 import express from 'express';
-import { activateSingleCode } from './activator.js';
+import { activateSingleCode } from './activator.ts';
 import axios from 'axios';
 import FormData from 'form-data';
 import cors from 'cors';
-import { fulfillOrder } from './bot_manager.js';
+import { fulfillOrder } from './bot_manager.ts';
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -157,35 +157,34 @@ app.get('/api/test-activate', async (req, res) => {
 // 1.5. Получение товаров Prime (Prime и Prime Plus)
 app.get('/api/prime-prices', async (req, res) => {
     try {
-        const { store } = req.query; // 'store' или 'promo'
         const { data: settings } = await supabase.from('settings').select('*').single();
         
         if (!settings) return res.status(500).json({ error: 'DB Data not found' });
-
-        const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate || 90) : (settings.usd_rate_store || settings.usd_rate || 90);
-
-        // Расчет цен для Prime (без комиссии, как скины)
-        const primeBasePrice = (settings.prime_price_usd || 0.05) * usdRate + (settings.prime_markup_rub || 0);
-        const primeFinalPrice = Math.ceil(primeBasePrice);
-        
-        // Расчет цен для Prime Plus (без комиссии, как скины)
-        const primePlusBasePrice = (settings.prime_plus_price_usd || 0.08) * usdRate + (settings.prime_plus_markup_rub || 0);
-        const primePlusFinalPrice = Math.ceil(primePlusBasePrice);
 
         const primeProducts = [
             {
                 id: 'prime',
                 title: 'Prime',
-                price: primeFinalPrice,
+                periods: [
+                    { months: 1, price: settings.prime_1m_rub || 150 },
+                    { months: 3, price: settings.prime_3m_rub || 400 },
+                    { months: 6, price: settings.prime_6m_rub || 750 },
+                    { months: 12, price: settings.prime_12m_rub || 1400 }
+                ],
                 image_url: '/prime.jpg',
-                description: 'Prime Gaming подписка на месяц'
+                description: 'Prime Gaming подписка'
             },
             {
                 id: 'prime_plus',
                 title: 'Prime Plus',
-                price: primePlusFinalPrice,
+                periods: [
+                    { months: 1, price: settings.prime_plus_1m_rub || 250 },
+                    { months: 3, price: settings.prime_plus_3m_rub || 700 },
+                    { months: 6, price: settings.prime_plus_6m_rub || 1300 },
+                    { months: 12, price: settings.prime_plus_12m_rub || 2400 }
+                ],
                 image_url: '/prime-plus.jpg',
-                description: 'Prime Gaming Plus подписка на месяц'
+                description: 'Prime Gaming Plus подписка'
             }
         ];
         res.json(primeProducts);
@@ -666,6 +665,55 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, `🎮 Маржа Prime Plus: ${markup}₽`);
             }
 
+            // Команды для цен периодов Prime
+            if (text.toLowerCase().startsWith('prime_1m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_1m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 1 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_3m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_3m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 3 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_6m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_6m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 6 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_12m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_12m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 12 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_1m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_1m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 1 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_3m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_3m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 3 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_6m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_6m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_12m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_12m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 12 мес: ${price}₽`);
+            }
+
             if (text === '/admin_manage') {
                 const keyboard = {
                     inline_keyboard: [
@@ -677,83 +725,44 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
 
             if (text === '/admin') {
-                const { data: settings } = await supabase.from('settings').select('*').single();
-                const { data: stock } = await supabase.from('codes_stock').select('value, is_used');
-                
-                const stats: any = {};
-                stock?.filter((c: any) => !c.is_used).forEach((c: any) => stats[c.value] = (stats[c.value] || 0) + 1);
-                
-                let stockMsg = "📦 <b>Склад кодов:</b>\n";
-                for (const [k, v] of Object.entries(stats)) stockMsg += `${k} UC: ${v} шт.\n`;
-                if (Object.keys(stats).length === 0) stockMsg += "Пусто\n";
-                
-                const menuText = `🔧 <b>АДМИН ПАНЕЛЬ</b>\n\n${stockMsg}\n📈 Курс Store: ${settings?.usd_rate_store || 'не установлен'} руб/$\n📈 Курс Promo: ${settings?.usd_rate_promo || 'не установлен'} руб/$\n👑 ПП (10000): ${settings?.pp_price_usd && settings?.usd_rate_store ? Math.ceil((settings.pp_price_usd * settings.usd_rate_store + (settings.pp_markup_rub || 0)) * (1 + 0.052)) + '₽' : 'не установлена'} | USD: ${settings?.pp_price_usd || 'не установлен'}$ | Маржа: ${settings?.pp_markup_rub || 'не установлена'}₽\n🎫 Билеты (100): ${settings?.ticket_price_usd && settings?.usd_rate_store ? Math.ceil((settings.ticket_price_usd * settings.usd_rate_store + (settings.ticket_markup_rub || 0)) * (1 + 0.052)) + '₽' : 'не установлена'} | USD: ${settings?.ticket_price_usd || 'не установлен'}$ | Маржа: ${settings?.ticket_markup_rub || 'не установлена'}₽\n🎮 Prime: ${settings?.prime_price_usd && settings?.usd_rate_store ? Math.ceil((settings.prime_price_usd * settings.usd_rate_store + (settings.prime_markup_rub || 0))) + '₽' : 'не установлена'} | USD: ${settings?.prime_price_usd || 'не установлен'}$ | Маржа: ${settings?.prime_markup_rub || 'не установлена'}₽\n🎮 Prime Plus: ${settings?.prime_plus_price_usd && settings?.usd_rate_store ? Math.ceil((settings.prime_plus_price_usd * settings.usd_rate_store + (settings.prime_plus_markup_rub || 0))) + '₽' : 'не установлена'} | USD: ${settings?.prime_plus_price_usd || 'не установлен'}$ | Маржа: ${settings?.prime_plus_markup_rub || 'не установлена'}₽\n\n<b>Команды:</b>\n• курс_store [число] - курс для Store\n• курс_promo [число] - курс для Promo\n• курс [число] - общий курс\n• маржа [uc] [руб] - маржа для UC\n• код [uc] [код] - добавить промокод на склад\n• освободить - освободить зарезервированные коды\n• price_usd [uc] [цена] - базовая цена UC в USD\n• pp_usd [цена] - базовая цена ПП в USD\n• pp_markup [руб] - наценка ПП\n• ticket_usd [цена] - базовая цена билетов в USD\n• ticket_markup [руб] - наценка билетов\n• prime_usd [цена] - базовая цена Prime в USD\n• prime_markup [руб] - маржа Prime\n• prime_plus_usd [цена] - базовая цена Prime Plus в USD\n• prime_plus_markup [руб] - маржа Prime Plus\n• скин [название] [цена] - добавить скин (отправить фото с подписью)\n• /admin_manage - управление товарами\n• /admin - показать эту панель`;
-                
-                await sendTg(chatId, menuText);
-            }
-        } else {
-            // Обработка команд для обычных пользователей
-            console.log(`[WEBHOOK] Processing as regular user`);
-            if (text === '/start') {
-                console.log(`[START] Processing /start for user ${chatId}`);
-                
-                const welcomeMessage = `Добро пожаловать в наш магазин 👋\n\n` +
-                    `Воспользуйся кнопкой ниже для <b>осуществления покупки </b>! 🛍️\n\n`;
+        }
 
-                
-                const keyboard = {
-                    inline_keyboard: [[
-                        { text: "Открыть магазин", icon_custom_emoji_id: "5242557396416500126", style: "danger", web_app: { url: `${process.env.CLIENT_URL}` } }
-                    ]]
-                };
-                
-                console.log(`[START] Sending welcome message to ${chatId}`);
-                try {
-                    await sendLocalPhoto(chatId, START_IMAGE_PATH, welcomeMessage, keyboard);
-                    console.log(`[START] Photo sent`);
-                } catch (error: any) {
-                    console.error(`[START] Failed to send local photo to user ${chatId}:`, error.message);
-                    // Fallback to text message
-                    await sendTg(chatId, welcomeMessage, keyboard);
-                    console.log(`[START] Text message sent as fallback`);
-                }
-                console.log(`[START] Message sent`);
-            }
-
-            // Ограничение админ-команд для юзеров
-            if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin'].some(cmd => text.toLowerCase().startsWith(cmd))) {
-                await sendTg(chatId, "доступно только администратору");
-            }
+        // Ограничение админ-команд для юзеров
+        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin'].some(cmd => text.toLowerCase().startsWith(cmd))) {
+            await sendTg(chatId, "доступно только администратору");
         }
     }
+}
 
-    // Обработка фото скинов
-    if (message && message.photo && message.caption) {
-        const currentChatId = message.chat.id.toString();
-        if (ADMIN_CHAT_ID.includes(currentChatId)) {
-            const caption = message.caption.trim();
-            if (caption.toLowerCase().startsWith('скин ')) {
-                const parts = caption.split(' ');
-                if (parts.length >= 3) {
-                    const title = parts.slice(1, -1).join(' ');
-                    const price = parseInt(parts[parts.length - 1]);
-                    if (!isNaN(price)) {
-                        try {
-                            console.log(`[SKIN UPLOAD] Starting upload for '${title}' price ${price}`);
-                            const fileId = message.photo[message.photo.length - 1].file_id;
-                            console.log(`[SKIN UPLOAD] File ID: ${fileId}`);
-                            const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
-                            const filePath = fileResponse.data.result.file_path;
-                            console.log(`[SKIN UPLOAD] File path: ${filePath}`);
-                            const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
-                            console.log(`[SKIN UPLOAD] Download URL: ${downloadUrl}`);
-                            const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-                            const buffer = Buffer.from(imageResponse.data);
-                            console.log(`[SKIN UPLOAD] Buffer size: ${buffer.length} bytes`);
-                            const fileName = `skin_${Date.now()}.jpg`;
-                            console.log(`[SKIN UPLOAD] Uploading to Supabase: ${fileName}`);
-                            const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
-                            if (uploadError) {
+// Обработка фото скинов
+if (message && message.photo && message.caption) {
+    const currentChatId = message.chat.id.toString();
+    if (ADMIN_CHAT_ID.includes(currentChatId)) {
+        const caption = message.caption.trim();
+        if (caption.toLowerCase().startsWith('скин ')) {
+            const parts = caption.split(' ');
+            if (parts.length >= 3) {
+                const title = parts.slice(1, -1).join(' ');
+                const price = parseInt(parts[parts.length - 1]);
+                if (!isNaN(price)) {
+                    try {
+                        console.log(`[SKIN UPLOAD] Starting upload for '${title}' price ${price}`);
+                        const fileId = message.photo[message.photo.length - 1].file_id;
+                        console.log(`[SKIN UPLOAD] File ID: ${fileId}`);
+                        const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+                        const filePath = fileResponse.data.result.file_path;
+                        console.log(`[SKIN UPLOAD] File path: ${filePath}`);
+                        const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+                        console.log(`[SKIN UPLOAD] Download URL: ${downloadUrl}`);
+                        const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+                        const buffer = Buffer.from(imageResponse.data);
+                        console.log(`[SKIN UPLOAD] Buffer size: ${buffer.length} bytes`);
+                        const fileName = `skin_${Date.now()}.jpg`;
+                        console.log(`[SKIN UPLOAD] Uploading to Supabase: ${fileName}`);
+                        const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
+                        if (uploadError) {
+                            console.error('[SKIN UPLOAD] Upload error:', uploadError);
+                            throw uploadError;
                                 console.error('[SKIN UPLOAD] Upload error:', uploadError);
                                 throw uploadError;
                             }
@@ -793,19 +802,6 @@ app.post('/api/bot-webhook', async (req, res) => {
             const { data: stock } = await supabase.from('codes_stock').select('value, is_used');
             
             const stats: any = {};
-            stock?.filter((c: any) => !c.is_used).forEach((c: any) => stats[c.value] = (stats[c.value] || 0) + 1);
-            
-            let stockMsg = "📦 <b>Склад кодов:</b>\n";
-            for (const [k, v] of Object.entries(stats)) stockMsg += `${k} UC: ${v} шт.\n`;
-            if (Object.keys(stats).length === 0) stockMsg += "Пусто\n";
-            
-            const menuText = `🔧 <b>АДМИН ПАНЕЛЬ</b>\n\n${stockMsg}\n📈 Курс: ${settings?.usd_rate || 'не установлен'} руб/$\n👑 ПП (10000): ${settings?.pp_price_usd && settings?.usd_rate ? Math.ceil((settings.pp_price_usd * settings.usd_rate + (settings.pp_markup_rub || 0)) * (1 + 0.052)) + '₽' : 'не установлена'} | USD: ${settings?.pp_price_usd || 'не установлен'}$ | Маржа: ${settings?.pp_markup_rub || 'не установлена'}₽\n🎫 Билеты (100): ${settings?.ticket_price_usd && settings?.usd_rate ? Math.ceil((settings.ticket_price_usd * settings.usd_rate + (settings.ticket_markup_rub || 0)) * (1 + 0.052)) + '₽' : 'не установлена'} | USD: ${settings?.ticket_price_usd || 'не установлен'}$ | Маржа: ${settings?.ticket_markup_rub || 'не установлена'}₽\n🎮 Prime: ${settings?.prime_price_usd && settings?.usd_rate ? Math.ceil((settings.prime_price_usd * settings.usd_rate + (settings.prime_markup_rub || 0))) + '₽' : 'не установлена'} | USD: ${settings?.prime_price_usd || 'не установлен'}$ | Маржа: ${settings?.prime_markup_rub || 'не установлена'}₽\n🎮 Prime Plus: ${settings?.prime_plus_price_usd && settings?.usd_rate ? Math.ceil((settings.prime_plus_price_usd * settings.usd_rate + (settings.prime_plus_markup_rub || 0))) + '₽' : 'не установлена'} | USD: ${settings?.prime_plus_price_usd || 'не установлен'}$ | Маржа: ${settings?.prime_plus_markup_rub || 'не установлена'}₽\n\n<b>Команды:</b>\n• курс [число] - установить курс\n• маржа [uc] [руб] - маржа для UC\n• код [uc] [код] - добавить промокод на склад\n• освободить - освободить зарезервированные коды\n• price_usd [uc] [цена] - базовая цена UC в USD\n• pp_usd [цена] - базовая цена ПП в USD\n• pp_markup [руб] - наценка ПП\n• ticket_usd [цена] - базовая цена билетов ...\n• prime_usd [цена] - базовая цена Prime в USD\n• prime_markup [руб] - маржа Prime\n• prime_plus_usd [цена] - базовая цена Prime Plus в USD\n• prime_plus_markup [руб] - маржа Prime Plus\n• скин [название] [цена] - добавить скин (отправить фото с подписью)\n• /admin_manage - управление товарами\n• /admin - показать эту панель`;
-            
-            await editTg(currentChatId, msgId, menuText);
-            return;
-        }
-
-        if (data === 'm_uc') {
             const { data: products } = await supabase.from('products').select('*').order('amount_uc');
             if (products && products.length > 0) {
                 let text = "💎 Товары UC:\n";

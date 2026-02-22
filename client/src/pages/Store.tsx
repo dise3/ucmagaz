@@ -8,6 +8,8 @@ interface Pack {
   image: string;
   type?: 'prime' | 'prime_plus' | 'uc';
   title?: string;
+  periods?: { months: number; price: number }[]; // Для Prime товаров
+  months?: number; // Выбранный период
 }
 
 interface StoreProps {
@@ -19,6 +21,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
   const [packs, setPacks] = useState<Pack[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [selectedPeriods, setSelectedPeriods] = useState<{ [key: string]: { months: number; price: number } }>({});
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
 
   const getPrimeBenefits = (type: string) => {
@@ -50,9 +53,10 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const formattedPrimePacks = primePrices.map((item: any) => ({
           id: item.id,
           title: item.title,
-          price: item.price,
+          price: item.periods ? item.periods[0].price : 0, // Дефолтная цена из первого периода
           image: item.image_url,
-          type: item.id as 'prime' | 'prime_plus'
+          type: item.id as 'prime' | 'prime_plus',
+          periods: item.periods // Массив периодов
         }));
         
         const formattedUcPacks = ucData.map((p: any) => ({
@@ -64,6 +68,15 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         }));
         
         setPacks([...formattedPrimePacks, ...formattedUcPacks]);
+
+        // Инициализируем выбранные периоды для Prime товаров
+        const initialPeriods: { [key: string]: { months: number; price: number } } = {};
+        primePrices.forEach((item: any) => {
+          if (item.periods && item.periods.length > 0) {
+            initialPeriods[item.id] = item.periods[0];
+          }
+        });
+        setSelectedPeriods(initialPeriods);
       } catch (error) {
         console.error('Ошибка при загрузке товаров:', error);
       } finally {
@@ -117,7 +130,11 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
             key={pack.id} 
             onClick={() => {
               window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
-              onSelect(pack);
+              const selectedPack = {
+                ...pack,
+                months: selectedPeriods[pack.id]?.months
+              };
+              onSelect(selectedPack);
             }}
             className="relative bg-[#121212]/60 border border-white/10 rounded-[28px] p-3 flex flex-col items-center gap-3 active:scale-95 transition-all cursor-pointer group"
           >
@@ -169,6 +186,28 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                   : `${pack.amount?.toLocaleString('ru-RU')} UC`}
               </div>
 
+              {/* Period Selector for Prime */}
+              {pack.periods && pack.periods.length > 1 && (
+                <select
+                  value={selectedPeriods[pack.id]?.months || pack.periods[0].months}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const selected = pack.periods!.find(p => p.months === parseInt(e.target.value));
+                    if (selected) {
+                      setSelectedPeriods(prev => ({ ...prev, [pack.id]: selected }));
+                    }
+                  }}
+                  className="w-full bg-[#1a1a1a] border border-white/20 rounded-lg px-3 py-1 text-white text-sm"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {pack.periods.map(period => (
+                    <option key={period.months} value={period.months}>
+                      {period.months} мес - {period.price}₽
+                    </option>
+                  ))}
+                </select>
+              )}
+
               {/* Price Tag */}
               <div className="relative w-full overflow-hidden rounded-2xl">
                 <div className="absolute inset-0 bg-[#d4af37] blur-lg opacity-10" />
@@ -176,7 +215,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                   <div className="relative bg-[#0f0f0f] py-2.5 rounded-[14px] flex items-center justify-center overflow-hidden">
                     <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine" />
                     <span className="relative z-10 bg-gradient-to-b from-[#f3d092] via-[#d4af37] to-[#8a6d3b] bg-clip-text text-transparent font-black text-[15px] uppercase tracking-wider">
-                      {pack.price.toLocaleString('ru-RU')} ₽
+                      {selectedPeriods[pack.id]?.price ? selectedPeriods[pack.id].price.toLocaleString('ru-RU') : pack.price.toLocaleString('ru-RU')} ₽
                     </span>
                   </div>
                 </div>
