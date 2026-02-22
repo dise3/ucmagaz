@@ -725,13 +725,37 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
 
             if (text === '/admin') {
-                const keyboard = {
-                    inline_keyboard: [
-                        [{ text: "💎 UC", callback_data: "m_uc" }],
-                        [{ text: "🎭 Skins", callback_data: "m_skins" }]
-                    ]
-                };
-                await sendTg(chatId, "Админ панель:", keyboard);
+                const commandsText = `🔧 <b>Команды управления:</b>\n\n` +
+                    `💰 <b>Цены и курсы:</b>\n` +
+                    `<code>маржа [uc] [руб]</code> - наценка на UC\n` +
+                    `<code>курс_store [руб/$]</code> - курс для магазина\n` +
+                    `<code>курс_promo [руб/$]</code> - курс для промо\n` +
+                    `<code>price_usd [uc] [usd]</code> - цена базового номинала\n\n` +
+                    `👑 <b>ПП и билеты:</b>\n` +
+                    `<code>pp_usd [usd]</code> - базовая цена ПП\n` +
+                    `<code>pp_markup [руб]</code> - наценка на ПП\n` +
+                    `<code>ticket_usd [usd]</code> - базовая цена билетов\n` +
+                    `<code>ticket_markup [руб]</code> - наценка на билеты\n\n` +
+                    `🎮 <b>Prime подписки:</b>\n` +
+                    `<code>prime_usd [usd]</code> - базовая цена Prime\n` +
+                    `<code>prime_markup [руб]</code> - наценка Prime\n` +
+                    `<code>prime_plus_usd [usd]</code> - базовая цена Prime Plus\n` +
+                    `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n` +
+                    `<code>prime_1m [руб]</code> - цена Prime 1 мес\n` +
+                    `<code>prime_3m [руб]</code> - цена Prime 3 мес\n` +
+                    `<code>prime_6m [руб]</code> - цена Prime 6 мес\n` +
+                    `<code>prime_12m [руб]</code> - цена Prime 12 мес\n` +
+                    `<code>prime_plus_1m [руб]</code> - цена Prime Plus 1 мес\n` +
+                    `<code>prime_plus_3m [руб]</code> - цена Prime Plus 3 мес\n` +
+                    `<code>prime_plus_6m [руб]</code> - цена Prime Plus 6 мес\n` +
+                    `<code>prime_plus_12m [руб]</code> - цена Prime Plus 12 мес\n\n` +
+                    `📦 <b>Коды и товары:</b>\n` +
+                    `<code>код [uc] [код]</code> - добавить код\n` +
+                    `<code>освободить</code> - освободить зарезервированные коды\n` +
+                    `<code>/list</code> - показать наценки\n` +
+                    `<code>/admin_manage</code> - управление товарами`;
+
+                await sendTg(chatId, commandsText);
             }
 
         } else {
@@ -854,8 +878,7 @@ if (message && message.photo && message.caption) {
 
             const keyboard = {
                 inline_keyboard: [
-                    [{ text: "📦 Управление товарами", callback_data: "admin_manage" }],
-                    [{ text: "📊 Статистика", callback_data: "admin_stats" }]
+                    [{ text: "📦 Управление товарами", callback_data: "admin_manage" }]
                 ]
             };
 
@@ -870,33 +893,6 @@ if (message && message.photo && message.caption) {
                 ]
             };
             await editTg(currentChatId, msgId, "Выберите категорию для управления товарами:", keyboard);
-        }
-
-        if (data === 'admin_stats') {
-            const { data: settings } = await supabase.from('settings').select('*').single();
-            const { data: products } = await supabase.from('products').select('*');
-            const { data: orders } = await supabase.from('orders').select('*');
-            const { data: codes } = await supabase.from('codes_stock').select('*');
-
-            const totalOrders = orders?.length || 0;
-            const paidOrders = orders?.filter(o => o.status === 'paid' || o.status === 'completed').length || 0;
-            const totalRevenue = orders?.filter(o => o.status === 'paid' || o.status === 'completed').reduce((sum, o) => sum + (o.final_amount || o.price_rub), 0) || 0;
-            const totalUC = orders?.filter(o => o.status === 'paid' || o.status === 'completed').reduce((sum, o) => sum + o.amount_uc, 0) || 0;
-            const availableCodes = codes?.filter(c => !c.is_used).length || 0;
-
-            const statsText = `📊 <b>Статистика бота:</b>\n\n` +
-                `📦 <b>Товары:</b> ${products?.length || 0} UC номиналов\n` +
-                `🎫 <b>Коды:</b> ${availableCodes} доступных\n\n` +
-                `💰 <b>Заказы:</b>\n` +
-                `├ Всего: ${totalOrders}\n` +
-                `├ Оплаченных: ${paidOrders}\n` +
-                `├ Выручка: ${totalRevenue.toLocaleString()}₽\n` +
-                `└ UC продано: ${totalUC.toLocaleString()}\n\n` +
-                `💱 <b>Курсы:</b>\n` +
-                `├ Store: ${settings?.usd_rate_store || 'не задан'}₽/$\n` +
-                `└ Promo: ${settings?.usd_rate_promo || 'не задан'}₽/$`;
-
-            await editTg(currentChatId, msgId, statsText, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "admin_panel" }]] });
         }
 
         if (data === 'm_uc') {
