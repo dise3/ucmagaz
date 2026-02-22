@@ -741,37 +741,34 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
         }
     }
-}
 
-// Обработка фото скинов
-if (message && message.photo && message.caption) {
-    const currentChatId = message.chat.id.toString();
-    if (ADMIN_CHAT_ID.includes(currentChatId)) {
-        const caption = message.caption.trim();
-        if (caption.toLowerCase().startsWith('скин ')) {
-            const parts = caption.split(' ');
-            if (parts.length >= 3) {
-                const title = parts.slice(1, -1).join(' ');
-                const price = parseInt(parts[parts.length - 1]);
-                if (!isNaN(price)) {
-                    try {
-                        console.log(`[SKIN UPLOAD] Starting upload for '${title}' price ${price}`);
-                        const fileId = message.photo[message.photo.length - 1].file_id;
-                        console.log(`[SKIN UPLOAD] File ID: ${fileId}`);
-                        const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
-                        const filePath = fileResponse.data.result.file_path;
-                        console.log(`[SKIN UPLOAD] File path: ${filePath}`);
-                        const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
-                        console.log(`[SKIN UPLOAD] Download URL: ${downloadUrl}`);
-                        const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-                        const buffer = Buffer.from(imageResponse.data);
-                        console.log(`[SKIN UPLOAD] Buffer size: ${buffer.length} bytes`);
-                        const fileName = `skin_${Date.now()}.jpg`;
-                        console.log(`[SKIN UPLOAD] Uploading to Supabase: ${fileName}`);
-                        const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
-                        if (uploadError) {
-                            console.error('[SKIN UPLOAD] Upload error:', uploadError);
-                            throw uploadError;
+    // Обработка фото скинов
+    if (message && message.photo && message.caption) {
+        const currentChatId = message.chat.id.toString();
+        if (ADMIN_CHAT_ID.includes(currentChatId)) {
+            const caption = message.caption.trim();
+            if (caption.toLowerCase().startsWith('скин ')) {
+                const parts = caption.split(' ');
+                if (parts.length >= 3) {
+                    const title = parts.slice(1, -1).join(' ');
+                    const price = parseInt(parts[parts.length - 1]);
+                    if (!isNaN(price)) {
+                        try {
+                            console.log(`[SKIN UPLOAD] Starting upload for '${title}' price ${price}`);
+                            const fileId = message.photo[message.photo.length - 1].file_id;
+                            console.log(`[SKIN UPLOAD] File ID: ${fileId}`);
+                            const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+                            const filePath = fileResponse.data.result.file_path;
+                            console.log(`[SKIN UPLOAD] File path: ${filePath}`);
+                            const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+                            console.log(`[SKIN UPLOAD] Download URL: ${downloadUrl}`);
+                            const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+                            const buffer = Buffer.from(imageResponse.data);
+                            console.log(`[SKIN UPLOAD] Buffer size: ${buffer.length} bytes`);
+                            const fileName = `skin_${Date.now()}.jpg`;
+                            console.log(`[SKIN UPLOAD] Uploading to Supabase: ${fileName}`);
+                            const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
+                            if (uploadError) {
                                 console.error('[SKIN UPLOAD] Upload error:', uploadError);
                                 throw uploadError;
                             }
