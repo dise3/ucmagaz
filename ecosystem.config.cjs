@@ -10,7 +10,7 @@ module.exports = {
       name: 'ucmagaz-server',
       cwd: path.join(__dirname, 'server'),
       script: 'server.ts',
-      interpreter: path.join(__dirname, 'server/node_modules/.bin/tsx'),
+      interpreter: path.join(__dirname, 'node_modules/.bin/tsx'),
       instances: 1,
       autorestart: true,
       watch: false,
