@@ -215,7 +215,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                   <div className="relative bg-[#0f0f0f] py-2.5 rounded-[14px] flex items-center justify-center overflow-hidden">
                     <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent via-white/10 to-transparent animate-shine" />
                     <span className="relative z-10 bg-gradient-to-b from-[#f3d092] via-[#d4af37] to-[#8a6d3b] bg-clip-text text-transparent font-black text-[15px] uppercase tracking-wider">
-                      {selectedPeriods[pack.id]?.price ? selectedPeriods[pack.id].price.toLocaleString('ru-RU') : pack.price.toLocaleString('ru-RU')} ₽
+                      {(selectedPeriods[pack.id]?.price || pack.price || 0).toLocaleString('ru-RU')} ₽
                     </span>
                   </div>
                 </div>
