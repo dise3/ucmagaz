@@ -135,22 +135,22 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                 months: selectedPeriods[pack.id]?.months
               };
               onSelect(selectedPack);
-            }}
+            }} 
             className="relative bg-[#121212]/60 border border-white/10 rounded-[28px] p-3 flex flex-col items-center gap-3 active:scale-95 transition-all cursor-pointer group"
           >
-            {/* Блок Info & Tooltip */}
-            {(pack.type === 'prime' || pack.type === 'prime_plus') && (
-              <div className="absolute top-4 right-4 z-[50]">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
-                    setActiveTooltip(activeTooltip === String(pack.id) ? null : String(pack.id));
-                  }}
-                  className="w-7 h-7 bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-all shadow-xl"
-                >
-                  <Info size={14} className={activeTooltip === String(pack.id) ? "text-amber-400" : "text-white/80"} />
-                </button>
+              {/* Блок Info & Tooltip */}
+              {(pack.type === 'prime' || pack.type === 'prime_plus') && (
+                <div className="absolute top-4 right-4 z-[50]">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+                      setActiveTooltip(activeTooltip === String(pack.id) ? null : String(pack.id));
+                    }}
+                    className="w-7 h-7 bg-black/80 backdrop-blur-md rounded-full flex items-center justify-center border border-white/20 active:scale-90 transition-all shadow-xl"
+                  >
+                    <Info size={14} className={activeTooltip === String(pack.id) ? "text-amber-400" : "text-white/80"} />
+                  </button>
 
                 {activeTooltip === String(pack.id) && (
                   <div 
