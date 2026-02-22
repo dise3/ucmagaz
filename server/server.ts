@@ -607,8 +607,15 @@ app.post('/api/bot-webhook', async (req, res) => {
                 const parts = text.split(' ');
                 const uc = parseInt(parts[1]);
                 const price = parseFloat(parts[2]);
-                const { error } = await supabase.from('products').update({ price_usd: price }).eq('amount_uc', uc);
-                await sendTg(chatId, error ? `❌ Ошибка` : `✅ Базовая цена ${uc} UC = ${price}$`);
+                
+                // Check if it's a base denomination
+                const { data: baseDenom } = await supabase.from('base_denominations').select('*').eq('amount_uc', uc).single();
+                if (baseDenom) {
+                    const { error } = await supabase.from('base_denominations').update({ price_usd: price }).eq('amount_uc', uc);
+                    await sendTg(chatId, error ? `❌ Ошибка` : `✅ Базовая цена ${uc} UC обновлена: ${price}$`);
+                } else {
+                    await sendTg(chatId, `❌ ${uc} UC не является базовым номиналом. Цена рассчитывается динамически на основе базовых номиналов. Используйте 'маржа [uc] [руб]' для изменения наценки.`);
+                }
             }
 
             if (text.toLowerCase().startsWith('pp_markup ')) {
