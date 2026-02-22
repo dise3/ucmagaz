@@ -53,7 +53,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const formattedPrimePacks = primePrices.map((item: any) => ({
           id: item.id,
           title: item.title,
-          price: item.periods && item.periods.length > 0 ? item.periods[0].price : 0,
+          price: item.periods && item.periods.length > 0 ? Number(item.periods[0].price) : 0,
           image: item.image_url,
           type: item.id as 'prime' | 'prime_plus',
           periods: item.periods // Массив периодов
@@ -73,7 +73,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const initialPeriods: { [key: string]: { months: number; price: number } } = {};
         primePrices.forEach((item: any) => {
           if (item.periods && item.periods.length > 0 && item.periods[0]) {
-            initialPeriods[item.id] = item.periods[0];
+            initialPeriods[item.id] = { months: item.periods[0].months, price: Number(item.periods[0].price) };
           }
         });
         setSelectedPeriods(initialPeriods);
@@ -86,6 +86,14 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
 
     fetchProducts();
   }, [VITE_API_NGROK]);
+
+  // Обработчик изменения периода
+  const handlePeriodChange = (productId: string, months: number, periods: { months: number; price: number }[]) => {
+    const selected = periods.find(p => p.months === months);
+    if (selected) {
+      setSelectedPeriods(prev => ({ ...prev, [productId]: { months: selected.months, price: Number(selected.price) } }));
+    }
+  };
 
   if (loading) {
     return (
@@ -190,19 +198,16 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
               {/* Period Selector for Prime */}
               {pack.periods && pack.periods.length > 1 && (
                 <select
-                  value={selectedPeriods[pack.id]?.months || (pack.periods[0]?.months || '')}
+                  value={selectedPeriods[pack.id]?.months?.toString() || (pack.periods[0]?.months?.toString() || '')}
                   onChange={(e) => {
                     e.stopPropagation();
-                    const selected = pack.periods!.find(p => p.months === parseInt(e.target.value));
-                    if (selected) {
-                      setSelectedPeriods(prev => ({ ...prev, [pack.id]: selected }));
-                    }
+                    handlePeriodChange(pack.id, parseInt(e.target.value), pack.periods);
                   }}
                   className="w-full bg-[#1a1a1a] border border-white/20 rounded-lg px-3 py-1 text-white text-sm"
                   onClick={(e) => e.stopPropagation()}
                 >
                   {pack.periods.map(period => (
-                    <option key={period.months} value={period.months}>
+                    <option key={period.months} value={period.months.toString()}>
                       {period.months} мес - {period.price}₽
                     </option>
                   ))}

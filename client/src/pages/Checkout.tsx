@@ -132,6 +132,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   };
 
   const getTotalPrice = (): number => {
+    console.log('getTotalPrice pack:', pack, 'price:', pack.price, 'type:', pack.type);
     if (pack.type === 'pp') {
       if (!settings) return 0;
       const base = (settings.pp_price_usd * ((pack.amount || 0) / 10000)) * settings.usd_rate + (settings.pp_markup_rub || 0);
@@ -340,7 +341,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
                 {pack.title || `${(pack.amount || 0).toLocaleString()} ${pack.type === 'pp' ? 'ПП' : pack.type === 'tickets' ? 'билетов' : pack.type === 'prime' ? 'Prime' : pack.type === 'prime_plus' ? 'Prime Plus' : 'UC'}`}
               </span>
               <div className="flex items-center gap-2 bg-amber-500/30 border-2 border-amber-500/50 px-3 py-1 rounded-full w-fit">
-                <span className="text-amber-400 text-[14px] font-black">{getTotalPrice().toLocaleString()} ₽</span>
+                <span className="text-amber-400 text-[14px] font-black">{(() => { const p = getTotalPrice(); console.log('Render price:', p); return p.toLocaleString(); })()} ₽</span>
               </div>
             </div>
           </div>
@@ -411,7 +412,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
         <div className="flex justify-between items-center">
           <span className="text-2xl font-black text-white uppercase italic tracking-tight">Итого</span>
           <span className="text-4xl font-black text-amber-400 tracking-tighter">
-            {getTotalPrice().toFixed(2)}<span className="text-xl ml-1">₽</span>
+            {(() => { const p = getTotalPrice(); console.log('Total price:', p); return p.toFixed(2); })()}<span className="text-xl ml-1">₽</span>
           </span>
         </div>
       </div>

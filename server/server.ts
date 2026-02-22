@@ -166,10 +166,10 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime',
                 title: 'Prime',
                 periods: [
-                    { months: 1, price: settings.prime_1m_rub || 150 },
-                    { months: 3, price: settings.prime_3m_rub || 400 },
-                    { months: 6, price: settings.prime_6m_rub || 750 },
-                    { months: 12, price: settings.prime_12m_rub || 1400 }
+                    { months: 1, price: Number(settings.prime_1m_rub) || 150 },
+                    { months: 3, price: Number(settings.prime_3m_rub) || 400 },
+                    { months: 6, price: Number(settings.prime_6m_rub) || 750 },
+                    { months: 12, price: Number(settings.prime_12m_rub) || 1400 }
                 ],
                 image_url: '/prime.jpg',
                 description: 'Prime Gaming подписка'
@@ -178,10 +178,10 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime_plus',
                 title: 'Prime Plus',
                 periods: [
-                    { months: 1, price: settings.prime_plus_1m_rub || 250 },
-                    { months: 3, price: settings.prime_plus_3m_rub || 700 },
-                    { months: 6, price: settings.prime_plus_6m_rub || 1300 },
-                    { months: 12, price: settings.prime_plus_12m_rub || 2400 }
+                    { months: 1, price: Number(settings.prime_plus_1m_rub) || 250 },
+                    { months: 3, price: Number(settings.prime_plus_3m_rub) || 700 },
+                    { months: 6, price: Number(settings.prime_plus_6m_rub) || 1300 },
+                    { months: 12, price: Number(settings.prime_plus_12m_rub) || 2400 }
                 ],
                 image_url: '/prime-plus.jpg',
                 description: 'Prime Gaming Plus подписка'
