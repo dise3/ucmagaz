@@ -725,9 +725,40 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
 
             if (text === '/admin') {
-        }
+                const keyboard = {
+                    inline_keyboard: [
+                        [{ text: "💎 UC", callback_data: "m_uc" }],
+                        [{ text: "🎭 Skins", callback_data: "m_skins" }]
+                    ]
+                };
+                await sendTg(chatId, "Админ панель:", keyboard);
+            }
 
-        // Ограничение админ-команд для юзеров
+        } else {
+            // Обработка команд для обычных пользователей
+            if (text === '/start') {
+                console.log(`[START] Processing /start for regular user ${chatId}`);
+                
+                const welcomeMessage = `🎮 <b>Добро пожаловать в UC Магазин!</b>\n\n` +
+                    `Здесь вы можете купить:\n` +
+                    `💎 <b>UC</b> для PUBG Mobile\n` +
+                    `🎭 <b>Скины</b> и аксессуары\n` +
+                    `👑 <b>ПП</b> (Популярность)\n` +
+                    `🎫 <b>Билеты</b> для дома\n` +
+                    `🎮 <b>Prime Gaming</b> подписки\n\n` +
+                    `Нажмите кнопку ниже чтобы открыть магазин:`;
+                
+                const keyboard = {
+                    inline_keyboard: [[
+                        { text: "🛒 Открыть магазин", web_app: { url: `${process.env.CLIENT_URL || 'https://ucmagaz.web.app'}` } }
+                    ]]
+                };
+                
+                await sendTg(chatId, welcomeMessage, keyboard);
+                return;
+            }
+
+            // Ограничение админ-команд для юзеров
         if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin', '/admin_manage'].some(cmd => text.toLowerCase().startsWith(cmd))) {
             await sendTg(chatId, "доступно только администратору");
         }
@@ -797,19 +828,87 @@ if (message && message.photo && message.caption) {
         const msgId = callback_query.message.message_id;
 
         if (data === 'admin_panel') {
-            // Перенаправляем на команду /admin
+            // Показываем список команд для админа
+            const commandsText = `🔧 <b>Команды управления:</b>\n\n` +
+                `💰 <b>Цены и курсы:</b>\n` +
+                `<code>маржа [uc] [руб]</code> - наценка на UC\n` +
+                `<code>курс_store [руб/$]</code> - курс для магазина\n` +
+                `<code>курс_promo [руб/$]</code> - курс для промо\n` +
+                `<code>price_usd [uc] [usd]</code> - цена базового номинала\n\n` +
+                `👑 <b>ПП и билеты:</b>\n` +
+                `<code>pp_usd [usd]</code> - базовая цена ПП\n` +
+                `<code>pp_markup [руб]</code> - наценка на ПП\n` +
+                `<code>ticket_usd [usd]</code> - базовая цена билетов\n` +
+                `<code>ticket_markup [руб]</code> - наценка на билеты\n\n` +
+                `🎮 <b>Prime подписки:</b>\n` +
+                `<code>prime_usd [usd]</code> - базовая цена Prime\n` +
+                `<code>prime_markup [руб]</code> - наценка Prime\n` +
+                `<code>prime_plus_usd [usd]</code> - базовая цена Prime Plus\n` +
+                `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n\n` +
+                `📦 <b>Коды и товары:</b>\n` +
+                `<code>код [uc] [код]</code> - добавить код\n` +
+                `<code>освободить</code> - освободить зарезервированные коды\n` +
+                `<code>/list</code> - показать наценки\n\n` +
+                `⚙️ <b>Управление товарами:</b>\n` +
+                `<code>/admin_manage</code> - управление товарами`;
+
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "📦 Управление товарами", callback_data: "admin_manage" }],
+                    [{ text: "📊 Статистика", callback_data: "admin_stats" }]
+                ]
+            };
+
+            await editTg(currentChatId, msgId, commandsText, keyboard);
+        }
+
+        if (data === 'admin_manage') {
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "💎 UC", callback_data: "m_uc" }],
+                    [{ text: "🎭 Skins", callback_data: "m_skins" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, "Выберите категорию для управления товарами:", keyboard);
+        }
+
+        if (data === 'admin_stats') {
             const { data: settings } = await supabase.from('settings').select('*').single();
-            const { data: stock } = await supabase.from('codes_stock').select('value, is_used');
-            
-            const stats: any = {};
+            const { data: products } = await supabase.from('products').select('*');
+            const { data: orders } = await supabase.from('orders').select('*');
+            const { data: codes } = await supabase.from('codes_stock').select('*');
+
+            const totalOrders = orders?.length || 0;
+            const paidOrders = orders?.filter(o => o.status === 'paid' || o.status === 'completed').length || 0;
+            const totalRevenue = orders?.filter(o => o.status === 'paid' || o.status === 'completed').reduce((sum, o) => sum + (o.final_amount || o.price_rub), 0) || 0;
+            const totalUC = orders?.filter(o => o.status === 'paid' || o.status === 'completed').reduce((sum, o) => sum + o.amount_uc, 0) || 0;
+            const availableCodes = codes?.filter(c => !c.is_used).length || 0;
+
+            const statsText = `📊 <b>Статистика бота:</b>\n\n` +
+                `📦 <b>Товары:</b> ${products?.length || 0} UC номиналов\n` +
+                `🎫 <b>Коды:</b> ${availableCodes} доступных\n\n` +
+                `💰 <b>Заказы:</b>\n` +
+                `├ Всего: ${totalOrders}\n` +
+                `├ Оплаченных: ${paidOrders}\n` +
+                `├ Выручка: ${totalRevenue.toLocaleString()}₽\n` +
+                `└ UC продано: ${totalUC.toLocaleString()}\n\n` +
+                `💱 <b>Курсы:</b>\n` +
+                `├ Store: ${settings?.usd_rate_store || 'не задан'}₽/$\n` +
+                `└ Promo: ${settings?.usd_rate_promo || 'не задан'}₽/$`;
+
+            await editTg(currentChatId, msgId, statsText, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "admin_panel" }]] });
+        }
+
+        if (data === 'm_uc') {
             const { data: products } = await supabase.from('products').select('*').order('amount_uc');
             if (products && products.length > 0) {
                 let text = "💎 Товары UC:\n";
                 const keyboard: any = { inline_keyboard: [] };
                 products.forEach((p: any) => {
-                    text += `${p.amount_uc} UC - ${p.price_usd}$\n`;
+                    text += `${p.amount_uc} UC - ${p.price_usd}$ (+${p.markup_rub}₽)\n`;
                     keyboard.inline_keyboard.push([{ text: `❌ Удалить ${p.amount_uc} UC`, callback_data: `del_products_${p.id}` }]);
                 });
+                keyboard.inline_keyboard.push([{ text: "🔙 Назад", callback_data: "admin_manage" }]);
                 await editTg(currentChatId, msgId, text, keyboard);
             } else {
                 await answerCallback(callback_query.id, "Нет товаров");
@@ -825,6 +924,7 @@ if (message && message.photo && message.caption) {
                     text += `${s.title} - ${s.price_rub}₽\n`;
                     keyboard.inline_keyboard.push([{ text: `❌ Удалить ${s.title}`, callback_data: `del_skins_products_${s.id}` }]);
                 });
+                keyboard.inline_keyboard.push([{ text: "🔙 Назад", callback_data: "admin_manage" }]);
                 await editTg(currentChatId, msgId, text, keyboard);
             } else {
                 await answerCallback(callback_query.id, "Нет товаров");
