@@ -725,11 +725,20 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
 
             if (text === '/admin') {
-        }
+                const keyboard = {
+                    inline_keyboard: [
+                        [{ text: "💎 Управление UC", callback_data: "m_uc" }],
+                        [{ text: "🎭 Управление Skins", callback_data: "m_skins" }]
+                    ]
+                };
+                await sendTg(chatId, "Админ панель:", keyboard);
+            }
 
-        // Ограничение админ-команд для юзеров
-        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin'].some(cmd => text.toLowerCase().startsWith(cmd))) {
-            await sendTg(chatId, "доступно только администратору");
+        } else {
+            // Ограничение админ-команд для юзеров
+            if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin'].some(cmd => text.toLowerCase().startsWith(cmd))) {
+                await sendTg(chatId, "доступно только администратору");
+            }
         }
     }
 }
