@@ -728,7 +728,7 @@ app.post('/api/bot-webhook', async (req, res) => {
         }
 
         // Ограничение админ-команд для юзеров
-        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin'].some(cmd => text.toLowerCase().startsWith(cmd))) {
+        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin', '/admin_manage'].some(cmd => text.toLowerCase().startsWith(cmd))) {
             await sendTg(chatId, "доступно только администратору");
         }
     }
