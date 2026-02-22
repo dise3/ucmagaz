@@ -852,7 +852,6 @@ if (message && message.photo && message.caption) {
         const msgId = callback_query.message.message_id;
 
         if (data === 'admin_panel') {
-            // Показываем список команд для админа
             const commandsText = `🔧 <b>Команды управления:</b>\n\n` +
                 `💰 <b>Цены и курсы:</b>\n` +
                 `<code>маржа [uc] [руб]</code> - наценка на UC\n` +
@@ -868,21 +867,22 @@ if (message && message.photo && message.caption) {
                 `<code>prime_usd [usd]</code> - базовая цена Prime\n` +
                 `<code>prime_markup [руб]</code> - наценка Prime\n` +
                 `<code>prime_plus_usd [usd]</code> - базовая цена Prime Plus\n` +
-                `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n\n` +
+                `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n` +
+                `<code>prime_1m [руб]</code> - цена Prime 1 мес\n` +
+                `<code>prime_3m [руб]</code> - цена Prime 3 мес\n` +
+                `<code>prime_6m [руб]</code> - цена Prime 6 мес\n` +
+                `<code>prime_12m [руб]</code> - цена Prime 12 мес\n` +
+                `<code>prime_plus_1m [руб]</code> - цена Prime Plus 1 мес\n` +
+                `<code>prime_plus_3m [руб]</code> - цена Prime Plus 3 мес\n` +
+                `<code>prime_plus_6m [руб]</code> - цена Prime Plus 6 мес\n` +
+                `<code>prime_plus_12m [руб]</code> - цена Prime Plus 12 мес\n\n` +
                 `📦 <b>Коды и товары:</b>\n` +
                 `<code>код [uc] [код]</code> - добавить код\n` +
                 `<code>освободить</code> - освободить зарезервированные коды\n` +
-                `<code>/list</code> - показать наценки\n\n` +
-                `⚙️ <b>Управление товарами:</b>\n` +
+                `<code>/list</code> - показать наценки\n` +
                 `<code>/admin_manage</code> - управление товарами`;
 
-            const keyboard = {
-                inline_keyboard: [
-                    [{ text: "📦 Управление товарами", callback_data: "admin_manage" }]
-                ]
-            };
-
-            await editTg(currentChatId, msgId, commandsText, keyboard);
+            await editTg(currentChatId, msgId, commandsText);
         }
 
         if (data === 'admin_manage') {
