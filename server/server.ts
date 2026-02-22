@@ -763,18 +763,11 @@ app.post('/api/bot-webhook', async (req, res) => {
             if (text === '/start') {
                 console.log(`[START] Processing /start for regular user ${chatId}`);
                 
-                const welcomeMessage = `🎮 <b>Добро пожаловать в UC Магазин!</b>\n\n` +
-                    `Здесь вы можете купить:\n` +
-                    `💎 <b>UC</b> для PUBG Mobile\n` +
-                    `🎭 <b>Скины</b> и аксессуары\n` +
-                    `👑 <b>ПП</b> (Популярность)\n` +
-                    `🎫 <b>Билеты</b> для дома\n` +
-                    `🎮 <b>Prime Gaming</b> подписки\n\n` +
-                    `Нажмите кнопку ниже чтобы открыть магазин:`;
+                const welcomeMessage = `Добро пожаловать в наш магазин 👋\n\nВоспользуйся кнопкой ниже для осуществления покупки 🛍️`;
                 
                 const keyboard = {
                     inline_keyboard: [[
-                        { text: "🛒 Открыть магазин", web_app: { url: `${process.env.CLIENT_URL || 'https://ucmagaz.web.app'}` } }
+                        { text: "Открыть магазин", web_app: { url: `${process.env.CLIENT_URL || 'https://ucmagaz.web.app'}` } }
                     ]]
                 };
                 
