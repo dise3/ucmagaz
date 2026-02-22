@@ -3,11 +3,11 @@ dotenv.config({ path: '../.env' });
 console.log('dotenv loaded');
 
 import express from 'express';
-import { activateSingleCode } from './activator.ts';
+import { activateSingleCode } from './activator.js';
 import axios from 'axios';
 import FormData from 'form-data';
 import cors from 'cors';
-import { fulfillOrder } from './bot_manager.ts';
+import { fulfillOrder } from './bot_manager.js';
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -198,17 +198,39 @@ app.get('/api/products', async (req, res) => {
         const { store } = req.query; // 'store' или 'promo'
         const { data: settings } = await supabase.from('settings').select('*').single();
         const { data: products } = await supabase.from('products').select('*').order('sort_order');
+        const { data: baseDenoms } = await supabase.from('base_denominations').select('*').order('amount_uc', { ascending: false });
         
-        if (!settings || !products) return res.status(500).json({ error: 'DB Data not found' });
+        if (!settings || !products || !baseDenoms) return res.status(500).json({ error: 'DB Data not found' });
 
         const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate || 90) : (settings.usd_rate_store || settings.usd_rate || 90);
 
+        // Функция расчета цены на основе базовых номиналов
+        const calculateUCPrice = (ucAmount: number, baseDenominations: any[], usdRate: number, markupRub: number, feePercent: number, isPromo: boolean) => {
+            let totalUsd = 0;
+            let remaining = ucAmount;
+            for (let denom of baseDenominations) {
+                if (remaining >= denom.amount_uc) {
+                    let count = Math.floor(remaining / denom.amount_uc);
+                    totalUsd += count * denom.price_usd;
+                    remaining -= count * denom.amount_uc;
+                }
+            }
+            // Если остаток, пропорционально 60 UC
+            if (remaining > 0) {
+                let minDenom = baseDenominations.find(d => d.amount_uc === 60);
+                if (minDenom) {
+                    totalUsd += (remaining / 60) * minDenom.price_usd;
+                }
+            }
+            // Формула итоговой цены
+            const basePrice = (totalUsd * usdRate) + markupRub;
+            const finalPrice = isPromo ? Math.ceil(basePrice) : Math.ceil(basePrice * (1 + feePercent));
+            return finalPrice;
+        };
+
         const list = products.map(p => {
             const productMarkup = p.markup_rub || 0;
-            const basePrice = (p.price_usd * usdRate) + productMarkup;
-            const finalPrice = store === 'promo' 
-                ? Math.ceil(basePrice) 
-                : Math.ceil(basePrice * (1 + settings.fee_percent));
+            const finalPrice = calculateUCPrice(p.amount_uc, baseDenoms, usdRate, productMarkup, settings.fee_percent, store === 'promo');
             
             return {
                 id: p.id,
