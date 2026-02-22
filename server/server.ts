@@ -725,50 +725,44 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
 
             if (text === '/admin') {
-                const keyboard = {
-                    inline_keyboard: [
-                        [{ text: "💎 Управление UC", callback_data: "m_uc" }],
-                        [{ text: "🎭 Управление Skins", callback_data: "m_skins" }]
-                    ]
-                };
-                await sendTg(chatId, "Админ панель:", keyboard);
-            }
+        }
 
-        } else {
-            // Ограничение админ-команд для юзеров
-            if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin', '/admin_manage'].some(cmd => text.toLowerCase().startsWith(cmd))) {
-                await sendTg(chatId, "доступно только администратору");
-            }
+        // Ограничение админ-команд для юзеров
+        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin'].some(cmd => text.toLowerCase().startsWith(cmd))) {
+            await sendTg(chatId, "доступно только администратору");
         }
     }
+}
 
-    // Обработка фото скинов
-    if (message && message.photo && message.caption) {
-        const currentChatId = message.chat.id.toString();
-        if (ADMIN_CHAT_ID.includes(currentChatId)) {
-            const caption = message.caption.trim();
-            if (caption.toLowerCase().startsWith('скин ')) {
-                const parts = caption.split(' ');
-                if (parts.length >= 3) {
-                    const title = parts.slice(1, -1).join(' ');
-                    const price = parseInt(parts[parts.length - 1]);
-                    if (!isNaN(price)) {
-                        try {
-                            console.log(`[SKIN UPLOAD] Starting upload for '${title}' price ${price}`);
-                            const fileId = message.photo[message.photo.length - 1].file_id;
-                            console.log(`[SKIN UPLOAD] File ID: ${fileId}`);
-                            const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
-                            const filePath = fileResponse.data.result.file_path;
-                            console.log(`[SKIN UPLOAD] File path: ${filePath}`);
-                            const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
-                            console.log(`[SKIN UPLOAD] Download URL: ${downloadUrl}`);
-                            const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
-                            const buffer = Buffer.from(imageResponse.data);
-                            console.log(`[SKIN UPLOAD] Buffer size: ${buffer.length} bytes`);
-                            const fileName = `skin_${Date.now()}.jpg`;
-                            console.log(`[SKIN UPLOAD] Uploading to Supabase: ${fileName}`);
-                            const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
-                            if (uploadError) {
+// Обработка фото скинов
+if (message && message.photo && message.caption) {
+    const currentChatId = message.chat.id.toString();
+    if (ADMIN_CHAT_ID.includes(currentChatId)) {
+        const caption = message.caption.trim();
+        if (caption.toLowerCase().startsWith('скин ')) {
+            const parts = caption.split(' ');
+            if (parts.length >= 3) {
+                const title = parts.slice(1, -1).join(' ');
+                const price = parseInt(parts[parts.length - 1]);
+                if (!isNaN(price)) {
+                    try {
+                        console.log(`[SKIN UPLOAD] Starting upload for '${title}' price ${price}`);
+                        const fileId = message.photo[message.photo.length - 1].file_id;
+                        console.log(`[SKIN UPLOAD] File ID: ${fileId}`);
+                        const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+                        const filePath = fileResponse.data.result.file_path;
+                        console.log(`[SKIN UPLOAD] File path: ${filePath}`);
+                        const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+                        console.log(`[SKIN UPLOAD] Download URL: ${downloadUrl}`);
+                        const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+                        const buffer = Buffer.from(imageResponse.data);
+                        console.log(`[SKIN UPLOAD] Buffer size: ${buffer.length} bytes`);
+                        const fileName = `skin_${Date.now()}.jpg`;
+                        console.log(`[SKIN UPLOAD] Uploading to Supabase: ${fileName}`);
+                        const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
+                        if (uploadError) {
+                            console.error('[SKIN UPLOAD] Upload error:', uploadError);
+                            throw uploadError;
                                 console.error('[SKIN UPLOAD] Upload error:', uploadError);
                                 throw uploadError;
                             }
@@ -803,37 +797,24 @@ app.post('/api/bot-webhook', async (req, res) => {
         const msgId = callback_query.message.message_id;
 
         if (data === 'admin_panel') {
-            // Показываем список команд для админа
-            const commandsText = `🔧 <b>Команды управления:</b>\n\n` +
-                `💰 <b>Цены и курсы:</b>\n` +
-                `<code>маржа [uc] [руб]</code> - наценка на UC\n` +
-                `<code>курс_store [руб/$]</code> - курс для магазина\n` +
-                `<code>курс_promo [руб/$]</code> - курс для промо\n` +
-                `<code>price_usd [uc] [usd]</code> - цена базового номинала\n\n` +
-                `👑 <b>ПП и билеты:</b>\n` +
-                `<code>pp_usd [usd]</code> - базовая цена ПП\n` +
-                `<code>pp_markup [руб]</code> - наценка на ПП\n` +
-                `<code>ticket_usd [usd]</code> - базовая цена билетов\n` +
-                `<code>ticket_markup [руб]</code> - наценка на билеты\n\n` +
-                `🎮 <b>Prime подписки:</b>\n` +
-                `<code>prime_usd [usd]</code> - базовая цена Prime\n` +
-                `<code>prime_markup [руб]</code> - наценка Prime\n` +
-                `<code>prime_plus_usd [usd]</code> - базовая цена Prime Plus\n` +
-                `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n\n` +
-                `📦 <b>Коды и товары:</b>\n` +
-                `<code>код [uc] [код]</code> - добавить код\n` +
-                `<code>освободить</code> - освободить зарезервированные коды\n` +
-                `<code>/list</code> - показать наценки\n\n` +
-                `⚙️ <b>Управление товарами:</b>\n` +
-                `<code>/admin_manage</code> - управление товарами`;
-
-            const keyboard = {
-                inline_keyboard: [
-                    [{ text: "📦 Управление товарами", callback_data: "admin_manage" }]
-                ]
-            };
-
-            await editTg(currentChatId, msgId, commandsText, keyboard);
+            // Перенаправляем на команду /admin
+            const { data: settings } = await supabase.from('settings').select('*').single();
+            const { data: stock } = await supabase.from('codes_stock').select('value, is_used');
+            
+            const stats: any = {};
+            const { data: products } = await supabase.from('products').select('*').order('amount_uc');
+            if (products && products.length > 0) {
+                let text = "💎 Товары UC:\n";
+                const keyboard: any = { inline_keyboard: [] };
+                products.forEach((p: any) => {
+                    text += `${p.amount_uc} UC - ${p.price_usd}$\n`;
+                    keyboard.inline_keyboard.push([{ text: `❌ Удалить ${p.amount_uc} UC`, callback_data: `del_products_${p.id}` }]);
+                });
+                await editTg(currentChatId, msgId, text, keyboard);
+            } else {
+                await answerCallback(callback_query.id, "Нет товаров");
+            }
+        }
 
         if (data === 'm_skins') {
             const { data: skins } = await supabase.from('skins_products').select('*').limit(15);
