@@ -767,7 +767,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                 
                 const keyboard = {
                     inline_keyboard: [[
-                        { text: "Открыть магазин", web_app: { url: `${process.env.CLIENT_URL || 'https://ucmagaz.web.app'}` } }
+                        { text: "Открыть магазин", icon_custom_emoji_id: "5242557396416500126", web_app: { url: `${process.env.CLIENT_URL || 'https://ucmagaz.web.app'}` } }
                     ]]
                 };
                 
