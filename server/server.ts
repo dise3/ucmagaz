@@ -251,6 +251,36 @@ app.get('/api/products', async (req, res) => {
 
         const usdRate = store === 'promo' ? settings.usd_rate_promo : settings.usd_rate_store;
 
+        // Базовые номиналы для расчета комбинированных
+        const baseAmounts = [60, 325, 660, 1800, 3850, 8100];
+        const baseProducts = products.filter(p => baseAmounts.includes(p.amount_uc));
+
+        // Функция расчета цены для комбинированного номинала
+        function calculateUCPrice(amount: number): number {
+            if (amount === 0) return 0;
+            let remaining = amount;
+            let total = 0;
+            // Сортируем базовые по убыванию
+            const sortedBases = baseProducts
+                .map(p => ({
+                    ...p,
+                    basePrice: (p.price_usd * usdRate + (p.markup_rub || 0)) * (store === 'promo' ? 1 : (1 + settings.fee_percent))
+                }))
+                .sort((a, b) => b.amount_uc - a.amount_uc);
+            
+            for (const base of sortedBases) {
+                while (remaining >= base.amount_uc) {
+                    total += base.basePrice;
+                    remaining -= base.amount_uc;
+                }
+            }
+            return Math.ceil(total);
+        }
+
+        // Список комбинированных номиналов
+        const comboAmounts = [120, 180, 240, 385, 445, 720, 985, 1320, 1920, 2125, 2460, 4510, 5650, 9900, 16200, 24300, 32400, 40500, 81000];
+
+        // Основные товары из БД
         const list = products.map(p => {
             // Прямой расчет: (цена_в_USD * курс) + наценка + комиссия
             const basePrice = (p.price_usd * usdRate) + (p.markup_rub || 0);
@@ -265,8 +295,29 @@ app.get('/api/products', async (req, res) => {
                 image_url: p.image_url
             };
         });
+
+        // Добавляем комбинированные номиналы
+        comboAmounts.forEach(amount => {
+            // Находим ближайший базовый для изображения
+            const closestBase = baseProducts.reduce((prev, curr) => 
+                Math.abs(curr.amount_uc - amount) < Math.abs(prev.amount_uc - amount) ? curr : prev
+            );
+            list.push({
+                id: `combo_${amount}`,
+                amount_uc: amount,
+                price: calculateUCPrice(amount),
+                image_url: closestBase.image_url
+            });
+        });
+
+        // Сортируем весь список по amount_uc
+        list.sort((a, b) => a.amount_uc - b.amount_uc);
+
         res.json(list);
-    } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
+    } catch (e) { 
+        console.error('Products API error:', e);
+        res.status(500).json({ error: 'Internal Error' }); 
+    }
 });
 
 // 3. ПОЛУЧЕНИЕ ПРОМОКОДОВ (считаются из реальных кодов в наличии)
@@ -280,7 +331,7 @@ app.get('/api/promo-products', async (req, res) => {
 
         // Группируем коды по номиналам
         const counts: Record<number, number> = {};
-        stock.forEach((s: any) => counts[s.value] = (counts[s.value] || 0) + 1);
+        stock.forEach((s: { value: number }) => counts[s.value] = (counts[s.value] || 0) + 1);
 
         const usdRate = settings.usd_rate_promo;
         
@@ -586,7 +637,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_код_batch' && state.uc !== undefined) {
-                    const codes = text.trim().split(/\s+/).filter(s => s.length > 0);
+                    const codes: string[] = text.trim().split(/\s+/).filter(s => s.length > 0);
                     if (codes.length > 0) {
                         const rows = codes.map(code => ({ value: state.uc!, code, is_used: false }));
                         const { error } = await supabase.from('codes_stock').insert(rows);
@@ -602,65 +653,11 @@ app.post('/api/bot-webhook', async (req, res) => {
                     if (!isNaN(price) && price >= 0) {
                         const group = productGroups[state.uc];
                         if (group) {
-                            // Получить текущую цену базового
-                            const { data: currentBase } = await supabase
+                            // Обновить базовый
+                            await supabase
                                 .from('products')
-                                .select('price_usd')
-                                .eq('amount_uc', state.uc)
-                                .single();
-                            const currentBasePrice = currentBase?.price_usd;
-                            if (currentBasePrice && currentBasePrice > 0) {
-                                // Обновить базовый
-                                await supabase
-                                    .from('products')
-                                    .update({ price_usd: price })
-                                    .eq('amount_uc', state.uc);
-                            // Получить текущие цены 60 и 120 для комбинаций
-                            const { data: current60 } = await supabase
-                                .from('products')
-                                .select('price_usd')
-                                .eq('amount_uc', 60)
-                                .single();
-                            const currentPrice60 = current60?.price_usd || 0;
-                            const { data: current120 } = await supabase
-                                .from('products')
-                                .select('price_usd')
-                                .eq('amount_uc', 120)
-                                .single();
-                            const currentPrice120 = current120?.price_usd || 0;
-                            // Обновить группу пропорционально
-                            for (const uc of group) {
-                                if (uc === state.uc) continue;
-                                const { data: currentProd } = await supabase
-                                    .from('products')
-                                    .select('price_usd')
-                                    .eq('amount_uc', uc)
-                                    .single();
-                                if (currentProd) {
-                                    let multiplier: number;
-                                    if (state.uc === 325 && uc === 385) {
-                                        // 385 = 325 + 60
-                                        multiplier = 1 + (currentPrice60 / price);
-                                    } else if (state.uc === 325 && uc === 445) {
-                                        // 445 = 325 + 120
-                                        multiplier = 1 + (currentPrice120 / price);
-                                    } else if (state.uc === 660 && uc === 720) {
-                                        // 720 = 660 + 60
-                                        multiplier = 1 + (currentPrice60 / price);
-                                    } else {
-                                        multiplier = uc / state.uc;
-                                    }
-                                    const newPrice = multiplier * price;
-                                    await supabase
-                                        .from('products')
-                                        .update({ price_usd: newPrice })
-                                        .eq('amount_uc', uc);
-                                }
-                            }
-                                await sendTg(chatId, `✅ Цена обновлена для группы ${state.uc} UC`, getAdminMainKeyboard());
-                            } else {
-                                await sendTg(chatId, '❌ Ошибка: базовая цена не найдена');
-                            }
+                                .update({ price_usd: price })
+                                .eq('amount_uc', state.uc);
                         } else {
                             // Если не базовый, обновить только этот
                             const { error } = await supabase
@@ -669,9 +666,64 @@ app.post('/api/bot-webhook', async (req, res) => {
                                 .eq('amount_uc', state.uc);
                             await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
                         }
-                    } else {
-                        await sendTg(chatId, '❌ Введите число');
-                    }
+
+                        // Автоматическое обновление комбо номиналов
+                        const baseAmounts = [60, 325, 660, 1800, 3850, 8100];
+                        if (baseAmounts.includes(state.uc)) {
+                            const { data: prices } = await supabase.from('products').select('amount_uc, price_usd');
+                            const priceMap = prices?.reduce((acc, p) => { acc[p.amount_uc] = p.price_usd; return acc; }, {} as Record<number, number>) || {};
+
+                            const updates = [];
+                            if (state.uc === 60) {
+                                updates.push({ amount_uc: 120, price_usd: price * 2 });
+                                updates.push({ amount_uc: 180, price_usd: price * 3 });
+                                updates.push({ amount_uc: 240, price_usd: price * 4 });
+                                updates.push({ amount_uc: 385, price_usd: (priceMap[325] || 0) + price });
+                                updates.push({ amount_uc: 445, price_usd: (priceMap[325] || 0) + price * 2 });
+                                updates.push({ amount_uc: 720, price_usd: (priceMap[660] || 0) + price });
+                                updates.push({ amount_uc: 1920, price_usd: (priceMap[1800] || 0) + price * 2 });
+                            }
+                            if (state.uc === 325) {
+                                updates.push({ amount_uc: 385, price_usd: price + (priceMap[60] || 0) });
+                                updates.push({ amount_uc: 445, price_usd: price + (priceMap[60] || 0) * 2 });
+                                updates.push({ amount_uc: 985, price_usd: (priceMap[660] || 0) + price });
+                                updates.push({ amount_uc: 2125, price_usd: (priceMap[1800] || 0) + price });
+                            }
+                            if (state.uc === 660) {
+                                updates.push({ amount_uc: 720, price_usd: price + (priceMap[60] || 0) });
+                                updates.push({ amount_uc: 985, price_usd: price + (priceMap[325] || 0) });
+                                updates.push({ amount_uc: 1320, price_usd: price * 2 });
+                                updates.push({ amount_uc: 2460, price_usd: (priceMap[1800] || 0) + price });
+                                updates.push({ amount_uc: 4510, price_usd: (priceMap[3850] || 0) + price });
+                            }
+                            if (state.uc === 1800) {
+                                updates.push({ amount_uc: 1920, price_usd: price + (priceMap[60] || 0) * 2 });
+                                updates.push({ amount_uc: 2125, price_usd: price + (priceMap[325] || 0) });
+                                updates.push({ amount_uc: 2460, price_usd: price + (priceMap[660] || 0) });
+                                updates.push({ amount_uc: 5650, price_usd: (priceMap[3850] || 0) + price });
+                                updates.push({ amount_uc: 9900, price_usd: (priceMap[8100] || 0) + price });
+                            }
+                            if (state.uc === 3850) {
+                                updates.push({ amount_uc: 4510, price_usd: price + (priceMap[660] || 0) });
+                                updates.push({ amount_uc: 5650, price_usd: price + (priceMap[1800] || 0) });
+                            }
+                            if (state.uc === 8100) {
+                                updates.push({ amount_uc: 9900, price_usd: price + (priceMap[1800] || 0) });
+                                updates.push({ amount_uc: 16200, price_usd: price * 2 });
+                                updates.push({ amount_uc: 24300, price_usd: price * 3 });
+                                updates.push({ amount_uc: 32400, price_usd: price * 4 });
+                                updates.push({ amount_uc: 40500, price_usd: price * 5 });
+                                updates.push({ amount_uc: 81000, price_usd: price * 10 });
+                            }
+
+                            for (const update of updates) {
+                                await supabase.from('products').update({ price_usd: update.price_usd }).eq('amount_uc', update.amount_uc);
+                            }
+                            await sendTg(chatId, `✅ Обновлена цена ${state.uc} UC и комбо номиналы`, getAdminMainKeyboard());
+                        } else {
+                            await sendTg(chatId, `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
+                        }
+                    } else await sendTg(chatId, '❌ Введите число');
                     return;
                 }
                 if (state.action === 'await_pp_markup') {
