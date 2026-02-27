@@ -706,6 +706,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                             if (state.uc === 3850) {
                                 updates.push({ amount_uc: 4510, price_usd: price + (priceMap[660] || 0) });
                                 updates.push({ amount_uc: 5650, price_usd: price + (priceMap[1800] || 0) });
+                                updates.push({ amount_uc: 11950, price_usd: price + (priceMap[8100] || 0) });
                             }
                             if (state.uc === 8100) {
                                 updates.push({ amount_uc: 9900, price_usd: price + (priceMap[1800] || 0) });
@@ -714,6 +715,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                                 updates.push({ amount_uc: 32400, price_usd: price * 4 });
                                 updates.push({ amount_uc: 40500, price_usd: price * 5 });
                                 updates.push({ amount_uc: 81000, price_usd: price * 10 });
+                                updates.push({ amount_uc: 11950, price_usd: (priceMap[3850] || 0) + price });
                             }
 
                             for (const update of updates) {
