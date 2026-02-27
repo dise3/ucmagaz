@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronLeft, Info } from 'lucide-react';
+import { ChevronLeft, Info, ChevronDown } from 'lucide-react';
 
 interface Pack {
   id: number | string;
@@ -21,8 +21,18 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
   const [packs, setPacks] = useState<Pack[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null); // Состояние для выплывающего списка
   const [selectedPeriods, setSelectedPeriods] = useState<{ [key: string]: { months: number; price: number } }>({});
+  const [paymentMethod, setPaymentMethod] = useState<'sbp' | 'card'>('sbp');
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
+
+  const COMMISSION_SBP = 0.052;
+  const COMMISSION_CARD = 0.0745;
+
+  const calculatePriceWithCommission = (base: number, method: 'sbp' | 'card') => {
+    if (method === 'sbp') return Math.ceil(base * (1 + COMMISSION_SBP));
+    return Math.ceil(base * (1 + COMMISSION_CARD));
+  };
 
   const getPrimeBenefits = (type: string) => {
     if (type === 'prime') {
@@ -50,29 +60,41 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const primePrices = await primeRes.json();
         const ucData = await ucRes.json();
         
-        const formattedPrimePacks = primePrices.map((item: any) => ({
-          id: item.id,
-          title: item.title,
-          price: item.periods && item.periods.length > 0 ? Number(item.periods[0].price) : 0,
-          image: item.image_url,
-          type: item.id as 'prime' | 'prime_plus',
-          periods: item.periods
-        }));
+        // Исправленное форматирование Prime с учетом комиссии во всех периодах
+        const formattedPrimePacks = primePrices.map((item: any) => {
+          const updatedPeriods = (item.periods || []).map((p: any) => ({
+            ...p,
+            price: calculatePriceWithCommission(Number(p.price), paymentMethod)
+          }));
+
+          return {
+            id: item.id,
+            title: item.title,
+            price: updatedPeriods.length > 0 ? updatedPeriods[0].price : 0,
+            image: item.image_url,
+            type: item.id as 'prime' | 'prime_plus',
+            periods: updatedPeriods
+          };
+        });
         
         const formattedUcPacks = ucData.map((p: any) => ({
           id: p.id,
           amount: p.amount_uc,
-          price: p.price || 0,
+          price: calculatePriceWithCommission(p.price || 0, paymentMethod),
           image: p.image_url,
           type: 'uc' as const
         }));
         
         setPacks([...formattedPrimePacks, ...formattedUcPacks]);
 
+        // Исправленная установка начальных периодов (берем уже рассчитанные цены с комиссией)
         const initialPeriods: { [key: string]: { months: number; price: number } } = {};
-        primePrices.forEach((item: any) => {
-          if (item.periods && item.periods.length > 0 && item.periods[0]) {
-            initialPeriods[item.id] = { months: item.periods[0].months, price: Number(item.periods[0].price) };
+        formattedPrimePacks.forEach((item: any) => {
+          if (item.periods && item.periods.length > 0) {
+            initialPeriods[item.id] = { 
+              months: item.periods[0].months, 
+              price: item.periods[0].price 
+            };
           }
         });
         setSelectedPeriods(initialPeriods);
@@ -84,13 +106,14 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
     };
 
     fetchProducts();
-  }, [VITE_API_NGROK]);
+  }, [VITE_API_NGROK, paymentMethod]);
 
   const handlePeriodChange = (productId: string, months: number, periods: { months: number; price: number }[]) => {
     const selected = periods.find(p => p.months === months);
     if (selected) {
       setSelectedPeriods(prev => ({ ...prev, [productId]: { months: selected.months, price: Number(selected.price) } }));
     }
+    setActiveDropdown(null); // Закрываем список после выбора
   };
 
   if (loading) {
@@ -135,6 +158,10 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           <div 
             key={pack.id} 
             onClick={() => {
+              if (activeDropdown) {
+                setActiveDropdown(null);
+                return;
+              }
               window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
               const selectedPack = {
                 ...pack,
@@ -189,32 +216,37 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                   : `${pack.amount?.toLocaleString('ru-RU')} UC`}
               </div>
 
-              {/* Улучшенный селектор периодов (Tabs) */}
+              {/* Выплывающий селектор периодов */}
               {pack.periods && pack.periods.length > 1 && (
-                <div 
-                  className="flex p-1 bg-black/40 backdrop-blur-md rounded-xl border border-white/5 w-full mt-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  {pack.periods.map((period) => {
-                    const isSelected = selectedPeriods[pack.id]?.months === period.months;
-                    return (
-                      <button
-                        key={period.months}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.Telegram?.WebApp?.HapticFeedback.selectionChanged();
-                          handlePeriodChange(String(pack.id), period.months, pack.periods);
-                        }}
-                        className={`relative flex-1 py-1.5 text-[10px] font-bold transition-all duration-300 rounded-lg uppercase tracking-tight
-                          ${isSelected ? 'text-white' : 'text-white/30'}`}
-                      >
-                        {isSelected && (
-                          <div className="absolute inset-0 bg-white/10 rounded-lg animate-in fade-in zoom-in-95 duration-200" />
-                        )}
-                        <span className="relative z-10">{period.months} мес</span>
-                      </button>
-                    );
-                  })}
+                <div className="relative w-full mt-1" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    onClick={() => {
+                      window.Telegram?.WebApp?.HapticFeedback.impactOccurred('light');
+                      setActiveDropdown(activeDropdown === String(pack.id) ? null : String(pack.id));
+                    }}
+                    className="flex items-center justify-between w-full px-3 py-2 bg-black/40 backdrop-blur-md rounded-xl border border-white/10 text-[10px] font-bold text-white uppercase tracking-tight active:scale-95 transition-all"
+                  >
+                    <span>{selectedPeriods[pack.id]?.months || pack.periods[0].months} мес.</span>
+                    <ChevronDown size={14} className={`transition-transform duration-300 ${activeDropdown === String(pack.id) ? 'rotate-180' : ''}`} />
+                  </button>
+
+                  {activeDropdown === String(pack.id) && (
+                    <div className="absolute bottom-full left-0 w-full mb-2 bg-[#1a1a1a] border border-white/20 rounded-xl overflow-hidden shadow-2xl z-[60] animate-in fade-in slide-in-from-bottom-2 duration-200">
+                      {pack.periods.map((period) => {
+                        const isSelected = selectedPeriods[pack.id]?.months === period.months;
+                        return (
+                          <button
+                            key={period.months}
+                            onClick={() => handlePeriodChange(String(pack.id), period.months, pack.periods!)}
+                            className={`w-full px-3 py-2.5 text-[10px] font-bold text-left uppercase transition-colors
+                              ${isSelected ? 'bg-white/10 text-white' : 'text-white/40 active:bg-white/5'}`}
+                          >
+                            {period.months} мес.
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
 

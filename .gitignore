@@ -16,3 +16,11 @@ server/dist/
 .idea/
 .vscode/
 *.swp
+
+supabase_setup.sql
+
+client/.firebaserc
+client/dist/
+server/sessions/
+
+sessions/

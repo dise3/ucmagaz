@@ -1,5 +1,8 @@
 {
   "projects": {
-    "default": "ucmagaz"
-  }
+    "default": "ucmagaz",
+    "prod": "ucmagaz-b4917"
+  },
+  "targets": {},
+  "etags": {}
 }

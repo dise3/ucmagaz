@@ -25,10 +25,27 @@ CREATE TABLE settings (
   pp_markup_rub INTEGER DEFAULT 0, -- Маржа для ПП
   ticket_price_usd FLOAT8 DEFAULT 0.01, -- Цена 100 билетов в USD
   ticket_markup_rub INTEGER DEFAULT 0, -- Маржа для билетов
-  prime_price_usd FLOAT8 DEFAULT 0.05, -- Цена Prime в USD
-  prime_markup_rub INTEGER DEFAULT 0, -- Маржа для Prime
-  prime_plus_price_usd FLOAT8 DEFAULT 0.08, -- Цена Prime Plus в USD
+  prime_markup_rub INTEGER DEFAULT 0, -- Маржа для Prime (добавляется к цене периода)
   prime_plus_markup_rub INTEGER DEFAULT 0, -- Маржа для Prime Plus
+  uc_60_price_usd FLOAT8 DEFAULT 1.0, -- Цена 60 UC в USD (60=1$, 120=2$ и т.д.)
+  -- Prime цены в USD
+  prime_1m_usd DECIMAL(10,2) DEFAULT 2.99,
+  prime_3m_usd DECIMAL(10,2) DEFAULT 8.99,
+  prime_6m_usd DECIMAL(10,2) DEFAULT 16.99,
+  prime_12m_usd DECIMAL(10,2) DEFAULT 24.99,
+  prime_plus_1m_usd DECIMAL(10,2) DEFAULT 4.99,
+  prime_plus_3m_usd DECIMAL(10,2) DEFAULT 14.99,
+  prime_plus_6m_usd DECIMAL(10,2) DEFAULT 25.99,
+  prime_plus_12m_usd DECIMAL(10,2) DEFAULT 39.99,
+  -- Prime наценки по месяцам
+  prime_markup_1m_rub DECIMAL(10,2) DEFAULT 50,
+  prime_markup_3m_rub DECIMAL(10,2) DEFAULT 150,
+  prime_markup_6m_rub DECIMAL(10,2) DEFAULT 300,
+  prime_markup_12m_rub DECIMAL(10,2) DEFAULT 500,
+  prime_plus_markup_1m_rub DECIMAL(10,2) DEFAULT 100,
+  prime_plus_markup_3m_rub DECIMAL(10,2) DEFAULT 300,
+  prime_plus_markup_6m_rub DECIMAL(10,2) DEFAULT 600,
+  prime_plus_markup_12m_rub DECIMAL(10,2) DEFAULT 1000,
   CONSTRAINT single_row CHECK (id = 1)
 );
 
@@ -127,8 +144,8 @@ CREATE POLICY "Enable all for base_denominations" ON base_denominations FOR ALL 
 CREATE POLICY "Enable all for skins_products" ON skins_products FOR ALL USING (true) WITH CHECK (true);
 
 -- Вставка настроек (безопасная)
-INSERT INTO settings (id, usd_rate, markup_rub_default, fee_percent, pp_price_usd, pp_markup_rub, ticket_price_usd, ticket_markup_rub, prime_price_usd, prime_markup_rub, prime_plus_price_usd, prime_plus_markup_rub) 
-VALUES (1, 78.0, 260.0, 0.052, 0.1, 0, 0.01, 0, 0.05, 0, 0.08, 0)
+INSERT INTO settings (id, usd_rate, markup_rub_default, fee_percent, pp_price_usd, pp_markup_rub, ticket_price_usd, ticket_markup_rub, prime_markup_rub, prime_plus_markup_rub, uc_60_price_usd, prime_1m_usd, prime_3m_usd, prime_6m_usd, prime_12m_usd, prime_plus_1m_usd, prime_plus_3m_usd, prime_plus_6m_usd, prime_plus_12m_usd, prime_markup_1m_rub, prime_markup_3m_rub, prime_markup_6m_rub, prime_markup_12m_rub, prime_plus_markup_1m_rub, prime_plus_markup_3m_rub, prime_plus_markup_6m_rub, prime_plus_markup_12m_rub) 
+VALUES (1, 78.0, 260.0, 0.052, 0.1, 0, 0.01, 0, 0, 0, 1.0, 2.99, 8.99, 16.99, 24.99, 4.99, 14.99, 25.99, 39.99, 50, 150, 300, 500, 100, 300, 600, 1000)
 ON CONFLICT (id) DO UPDATE SET
   usd_rate = EXCLUDED.usd_rate,
   markup_rub_default = EXCLUDED.markup_rub_default,
@@ -137,10 +154,25 @@ ON CONFLICT (id) DO UPDATE SET
   pp_markup_rub = EXCLUDED.pp_markup_rub,
   ticket_price_usd = EXCLUDED.ticket_price_usd,
   ticket_markup_rub = EXCLUDED.ticket_markup_rub,
-  prime_price_usd = EXCLUDED.prime_price_usd,
   prime_markup_rub = EXCLUDED.prime_markup_rub,
-  prime_plus_price_usd = EXCLUDED.prime_plus_price_usd,
-  prime_plus_markup_rub = EXCLUDED.prime_plus_markup_rub;
+  prime_plus_markup_rub = EXCLUDED.prime_plus_markup_rub,
+  uc_60_price_usd = COALESCE(EXCLUDED.uc_60_price_usd, 1.0),
+  prime_1m_usd = COALESCE(EXCLUDED.prime_1m_usd, 2.99),
+  prime_3m_usd = COALESCE(EXCLUDED.prime_3m_usd, 8.99),
+  prime_6m_usd = COALESCE(EXCLUDED.prime_6m_usd, 16.99),
+  prime_12m_usd = COALESCE(EXCLUDED.prime_12m_usd, 24.99),
+  prime_plus_1m_usd = COALESCE(EXCLUDED.prime_plus_1m_usd, 4.99),
+  prime_plus_3m_usd = COALESCE(EXCLUDED.prime_plus_3m_usd, 14.99),
+  prime_plus_6m_usd = COALESCE(EXCLUDED.prime_plus_6m_usd, 25.99),
+  prime_plus_12m_usd = COALESCE(EXCLUDED.prime_plus_12m_usd, 39.99),
+  prime_markup_1m_rub = COALESCE(EXCLUDED.prime_markup_1m_rub, 50),
+  prime_markup_3m_rub = COALESCE(EXCLUDED.prime_markup_3m_rub, 150),
+  prime_markup_6m_rub = COALESCE(EXCLUDED.prime_markup_6m_rub, 300),
+  prime_markup_12m_rub = COALESCE(EXCLUDED.prime_markup_12m_rub, 500),
+  prime_plus_markup_1m_rub = COALESCE(EXCLUDED.prime_plus_markup_1m_rub, 100),
+  prime_plus_markup_3m_rub = COALESCE(EXCLUDED.prime_plus_markup_3m_rub, 300),
+  prime_plus_markup_6m_rub = COALESCE(EXCLUDED.prime_plus_markup_6m_rub, 600),
+  prime_plus_markup_12m_rub = COALESCE(EXCLUDED.prime_plus_markup_12m_rub, 1000);
 
 -- Вставка продуктов UC (безопасная)
 INSERT INTO products (amount_uc, price_usd, markup_rub, image_url, sort_order) VALUES
@@ -224,17 +256,19 @@ BEGIN
 END $$;
 
 
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_1m_rub INTEGER DEFAULT 150;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_3m_rub INTEGER DEFAULT 400;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_6m_rub INTEGER DEFAULT 750;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_12m_rub INTEGER DEFAULT 1400;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_1m_rub INTEGER DEFAULT 250;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_3m_rub INTEGER DEFAULT 700;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_6m_rub INTEGER DEFAULT 1300;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_12m_rub INTEGER DEFAULT 2400;
-
-
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_price_usd FLOAT8 DEFAULT 0.05;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_markup_rub INTEGER DEFAULT 0;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_price_usd FLOAT8 DEFAULT 0.08;
-ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_markup_rub INTEGER DEFAULT 0;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_1m_usd DECIMAL(10,2) DEFAULT 2.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_3m_usd DECIMAL(10,2) DEFAULT 8.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_6m_usd DECIMAL(10,2) DEFAULT 16.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_12m_usd DECIMAL(10,2) DEFAULT 24.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_1m_usd DECIMAL(10,2) DEFAULT 4.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_3m_usd DECIMAL(10,2) DEFAULT 14.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_6m_usd DECIMAL(10,2) DEFAULT 25.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_12m_usd DECIMAL(10,2) DEFAULT 39.99;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_markup_1m_rub DECIMAL(10,2) DEFAULT 50;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_markup_3m_rub DECIMAL(10,2) DEFAULT 150;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_markup_6m_rub DECIMAL(10,2) DEFAULT 300;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_markup_12m_rub DECIMAL(10,2) DEFAULT 500;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_markup_1m_rub DECIMAL(10,2) DEFAULT 100;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_markup_3m_rub DECIMAL(10,2) DEFAULT 300;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_markup_6m_rub DECIMAL(10,2) DEFAULT 600;
+ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_plus_markup_12m_rub DECIMAL(10,2) DEFAULT 1000;

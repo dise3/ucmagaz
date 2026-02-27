@@ -61,6 +61,8 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
     try {
         console.log(`🚀 [BotManager] Начинаем выполнение заказа #${orderId} на ${amount} UC для UID: ${uid}`);
 
+        const usedCodes: string[] = [];  // Массив для использованных кодов
+
         const rawCodes = await findCodesForAmount(amount, orderId);
         
         if (!rawCodes || rawCodes.length === 0) {
@@ -127,6 +129,8 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
                         status: 'ACTIVATED'
                     }).eq('id', item.id);
 
+                    usedCodes.push(item.code);  // Добавить использованный код
+
                     activatedUcTotal += item.value;
                     finalReport.push({ code: item.code, status: 'SUCCESS', value: item.value });
                     isCodeDone = true;
@@ -177,6 +181,12 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
         if (finalStatus === 'completed') {
             if (chatId) await sendTg(chatId, `✅ <b>Заказ выполнен!</b>\n${activatedUcTotal} UC успешно зачислены на UID: ${uid}.`);
             await sendTg(ADMIN_CHAT_ID, `🤖 Заказ #${orderId} выполнен полностью (${activatedUcTotal} UC).`);
+
+            // Отправка использованных кодов в админ-чат
+            if (usedCodes.length > 0) {
+                const codesMessage = `🎫 <b>Использованные коды в заказе #${orderId}:</b>\n${usedCodes.join(', ')}`;
+                await sendTg(ADMIN_CHAT_ID, codesMessage);
+            }
         } else {
             const msg = `⚠️ Заказ #${orderId} выполнен частично: ${activatedUcTotal}/${amount} UC.`;
             await sendTg(ADMIN_CHAT_ID, msg);

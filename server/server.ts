@@ -37,6 +37,20 @@ const BACKEND_URL = process.env.BACKEND_URL;
 
 const automationTimers = new Map<number, NodeJS.Timeout>();
 
+// Состояния админов для кнопочного ввода (chatId -> { action, extra? })
+type AdminState = { action: string; uc?: number };
+const adminStates = new Map<string, AdminState>();
+
+// Группы продуктов для пропорционального обновления цен
+const productGroups: Record<number, number[]> = {
+  60: [60, 120, 180, 240],
+  325: [325, 385, 445],
+  660: [660, 720],
+  1800: [1800, 1920, 2125, 2460],
+  3850: [3850, 4510, 5650],
+  8100: [8100, 9900, 11950, 16200, 24300, 32400, 40500, 81000]
+};
+
 // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ TELEGRAM ---
 
 const sendTg = async (chatId: string | number | string[], text: string, replyMarkup?: any) => {
@@ -127,6 +141,29 @@ const editTg = async (chatId: string | number, msgId: number, text: string, repl
     }
 };
 
+// Парсит несколько кодов: "325 ABC 120 DEF" или построчно "325 ABC\n120 DEF"
+const parseMultipleCodes = (input: string): { uc: number; code: string }[] => {
+    const result: { uc: number; code: string }[] = [];
+    const tokens = input.trim().split(/\s+/);
+    let currentUc: number | null = null;
+    let codeParts: string[] = [];
+    for (const t of tokens) {
+        if (/^\d+$/.test(t)) {
+            if (currentUc !== null && codeParts.length > 0) {
+                result.push({ uc: currentUc, code: codeParts.join(' ') });
+            }
+            currentUc = parseInt(t);
+            codeParts = [];
+        } else {
+            codeParts.push(t);
+        }
+    }
+    if (currentUc !== null && codeParts.length > 0) {
+        result.push({ uc: currentUc, code: codeParts.join(' ') });
+    }
+    return result;
+};
+
 const answerCallback = async (queryId: string, text: string) => {
     try {
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/answerCallbackQuery`, {
@@ -135,6 +172,16 @@ const answerCallback = async (queryId: string, text: string) => {
         });
     } catch (e) {}
 };
+
+// Клавиатура главного меню админ-панели
+const getAdminMainKeyboard = () => ({
+    inline_keyboard: [
+        [{ text: "💰 Курсы", callback_data: "adm_rates" }, { text: "💎 UC/Маржа", callback_data: "adm_markup" }],
+        [{ text: "📦 Коды", callback_data: "adm_codes" }, { text: "👑 ПП и билеты", callback_data: "adm_pp" }],
+        [{ text: "🎮 Prime", callback_data: "adm_prime" }, { text: "💵 Базовые номиналы UC", callback_data: "adm_price_usd" }],
+        [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }]
+    ]
+});
 
 // --- API РОУТЫ ---
 
@@ -154,22 +201,24 @@ app.get('/api/test-activate', async (req, res) => {
     res.json({ result, account: account.email });
 });
 
-// 1.5. Получение товаров Prime (Prime и Prime Plus)
+// 1.5. Получение товаров Prime (Prime и Prime Plus) с расчетом по месячным ценам в USD
 app.get('/api/prime-prices', async (req, res) => {
     try {
         const { data: settings } = await supabase.from('settings').select('*').single();
         
         if (!settings) return res.status(500).json({ error: 'DB Data not found' });
 
+        const usdRate = settings.usd_rate_store;
+        
         const primeProducts = [
             {
                 id: 'prime',
                 title: 'Prime',
                 periods: [
-                    { months: 1, price: Number(settings.prime_1m_rub) || 150 },
-                    { months: 3, price: Number(settings.prime_3m_rub) || 400 },
-                    { months: 6, price: Number(settings.prime_6m_rub) || 750 },
-                    { months: 12, price: Number(settings.prime_12m_rub) || 1400 }
+                    { months: 1, price: Math.ceil((Number(settings.prime_1m_usd) || 2.99) * usdRate) + (Number(settings.prime_markup_1m_rub) || 0) },
+                    { months: 3, price: Math.ceil((Number(settings.prime_3m_usd) || 8.99) * usdRate) + (Number(settings.prime_markup_3m_rub) || 0) },
+                    { months: 6, price: Math.ceil((Number(settings.prime_6m_usd) || 16.99) * usdRate) + (Number(settings.prime_markup_6m_rub) || 0) },
+                    { months: 12, price: Math.ceil((Number(settings.prime_12m_usd) || 24.99) * usdRate) + (Number(settings.prime_markup_12m_rub) || 0) }
                 ],
                 image_url: '/prime.jpg',
                 description: 'Prime Gaming подписка'
@@ -178,10 +227,10 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime_plus',
                 title: 'Prime Plus',
                 periods: [
-                    { months: 1, price: Number(settings.prime_plus_1m_rub) || 250 },
-                    { months: 3, price: Number(settings.prime_plus_3m_rub) || 700 },
-                    { months: 6, price: Number(settings.prime_plus_6m_rub) || 1300 },
-                    { months: 12, price: Number(settings.prime_plus_12m_rub) || 2400 }
+                    { months: 1, price: Math.ceil((Number(settings.prime_plus_1m_usd) || 4.99) * usdRate) + (Number(settings.prime_plus_markup_1m_rub) || 0) },
+                    { months: 3, price: Math.ceil((Number(settings.prime_plus_3m_usd) || 14.99) * usdRate) + (Number(settings.prime_plus_markup_3m_rub) || 0) },
+                    { months: 6, price: Math.ceil((Number(settings.prime_plus_6m_usd) || 25.99) * usdRate) + (Number(settings.prime_plus_markup_6m_rub) || 0) },
+                    { months: 12, price: Math.ceil((Number(settings.prime_plus_12m_usd) || 39.99) * usdRate) + (Number(settings.prime_plus_markup_12m_rub) || 0) }
                 ],
                 image_url: '/prime-plus.jpg',
                 description: 'Prime Gaming Plus подписка'
@@ -191,45 +240,23 @@ app.get('/api/prime-prices', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
 
-// 2. Получение товаров (UC по ID)
+// 2. Получение товаров UC с расчетом цены
 app.get('/api/products', async (req, res) => {
     try {
         const { store } = req.query; // 'store' или 'promo'
         const { data: settings } = await supabase.from('settings').select('*').single();
         const { data: products } = await supabase.from('products').select('*').order('sort_order');
-        const { data: baseDenoms } = await supabase.from('base_denominations').select('*').order('amount_uc', { ascending: false });
         
-        if (!settings || !products || !baseDenoms) return res.status(500).json({ error: 'DB Data not found' });
+        if (!settings || !products) return res.status(500).json({ error: 'DB Data not found' });
 
-        const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate || 90) : (settings.usd_rate_store || settings.usd_rate || 90);
-
-        // Функция расчета цены на основе базовых номиналов
-        const calculateUCPrice = (ucAmount: number, baseDenominations: any[], usdRate: number, markupRub: number, feePercent: number, isPromo: boolean) => {
-            let totalUsd = 0;
-            let remaining = ucAmount;
-            for (let denom of baseDenominations) {
-                if (remaining >= denom.amount_uc) {
-                    let count = Math.floor(remaining / denom.amount_uc);
-                    totalUsd += count * denom.price_usd;
-                    remaining -= count * denom.amount_uc;
-                }
-            }
-            // Если остаток, пропорционально 60 UC
-            if (remaining > 0) {
-                let minDenom = baseDenominations.find(d => d.amount_uc === 60);
-                if (minDenom) {
-                    totalUsd += (remaining / 60) * minDenom.price_usd;
-                }
-            }
-            // Формула итоговой цены
-            const basePrice = (totalUsd * usdRate) + markupRub;
-            const finalPrice = isPromo ? Math.ceil(basePrice) : Math.ceil(basePrice * (1 + feePercent));
-            return finalPrice;
-        };
+        const usdRate = store === 'promo' ? settings.usd_rate_promo : settings.usd_rate_store;
 
         const list = products.map(p => {
-            const productMarkup = p.markup_rub || 0;
-            const finalPrice = calculateUCPrice(p.amount_uc, baseDenoms, usdRate, productMarkup, settings.fee_percent, store === 'promo');
+            // Прямой расчет: (цена_в_USD * курс) + наценка + комиссия
+            const basePrice = (p.price_usd * usdRate) + (p.markup_rub || 0);
+            const finalPrice = store === 'promo' 
+                ? Math.ceil(basePrice)  // промо без комиссии
+                : Math.ceil(basePrice * (1 + settings.fee_percent));  // store с комиссией
             
             return {
                 id: p.id,
@@ -242,29 +269,45 @@ app.get('/api/products', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
 
-// 3. ПОЛУЧЕНИЕ ПРОМОКОДОВ (ДЛЯ СКИНОВ/КОДОВ)
+// 3. ПОЛУЧЕНИЕ ПРОМОКОДОВ (считаются из реальных кодов в наличии)
 app.get('/api/promo-products', async (req, res) => {
     try {
         const { data: settings } = await supabase.from('settings').select('*').single();
+        const { data: products } = await supabase.from('products').select('*').order('sort_order');
         const { data: stock } = await supabase.from('codes_stock').select('value').eq('is_used', false);
         
-        if (!settings || !stock) return res.status(500).json({ error: 'Data not found' });
+        if (!settings || !products || !stock) return res.status(500).json({ error: 'Data not found' });
 
-        const counts: any = {};
-        stock.forEach(s => counts[s.value] = (counts[s.value] || 0) + 1);
+        // Группируем коды по номиналам
+        const counts: Record<number, number> = {};
+        stock.forEach((s: any) => counts[s.value] = (counts[s.value] || 0) + 1);
 
-        const list = Object.keys(counts).map(val => {
-            const amount = parseInt(val);
-            const finalPrice = Math.ceil(((amount / 60 * settings.usd_rate) + 100) * (1 + settings.fee_percent));
+        const usdRate = settings.usd_rate_promo;
+        
+        // Создаем товары только для тех номиналов, которые есть в наличии
+        const list = Object.entries(counts)
+            .map(([val, count]) => {
+                const amount = parseInt(val);
+                
+                // Ищем товар в таблице products по amount_uc
+                const product = products.find((p: any) => p.amount_uc === amount);
+                
+                if (!product) return null;
+                
+                // Используем цену из products таблицы, считаем по курсу promo
+                const basePrice = (product.price_usd * usdRate) + (product.markup_rub || 0);
+                const finalPrice = Math.ceil(basePrice * (1 + settings.fee_percent));
+                
+                return {
+                    id: amount,
+                    amount_uc: amount,
+                    price: finalPrice,
+                    image_url: product.image_url || '/1.png',
+                    stock_count: count
+                };
+            })
+            .filter(item => item !== null);
             
-            return {
-                id: amount,
-                amount_uc: amount,
-                price: finalPrice,
-                image_url: '/1.png', 
-                stock_count: counts[val]
-            };
-        });
         res.json(list);
     } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
@@ -430,39 +473,6 @@ app.post('/api/payment-callback', async (req, res) => {
     }
 });
 
-// 6. Получение цен на PP, билеты и Prime товары
-app.get('/api/prime-prices', async (req, res) => {
-    try {
-        const { data: settings } = await supabase.from('settings').select('*').single();
-        if (!settings) return res.status(500).json({ error: 'Settings not found' });
-
-        const COMMISSION_SBP = 0.052;
-        const COMMISSION_CARD = 0.0745;
-
-        const getBasePrice = (amount: number, type: string) => {
-            if (type === 'pp') return (settings.pp_price_usd || 0) * (amount / 10000);
-            if (type === 'tickets') return (settings.ticket_price_usd || 0) * (amount / 100);
-            if (type === 'prime') return settings.prime_price_usd || 0.05;
-            if (type === 'prime_plus') return settings.prime_plus_price_usd || 0.08;
-            return 0;
-        };
-
-        const calculatePriceWithCommission = (basePrice: number, commissionRate: number) => Math.ceil(basePrice * (1 + commissionRate));
-
-        const primeBase = getBasePrice(10000, 'pp') * settings.usd_rate + (settings.pp_markup_rub || 0);
-        const ticketBase = getBasePrice(100, 'tickets') * settings.usd_rate + (settings.ticket_markup_rub || 0);
-        const primeBasePrice = getBasePrice(1, 'prime') * settings.usd_rate + (settings.prime_markup_rub || 0);
-        const primePlusBasePrice = getBasePrice(1, 'prime_plus') * settings.usd_rate + (settings.prime_plus_markup_rub || 0);
-
-        res.json({
-            prime_prices: [{ amount: 10000, price_rub_sbp: calculatePriceWithCommission(primeBase, COMMISSION_SBP), price_rub_card: calculatePriceWithCommission(primeBase, COMMISSION_CARD) }],
-            ticket_prices: [{ amount: 100, price_rub_sbp: calculatePriceWithCommission(ticketBase, COMMISSION_SBP), price_rub_card: calculatePriceWithCommission(ticketBase, COMMISSION_CARD) }],
-            prime_item_prices: [{ amount: 1, price_rub_sbp: calculatePriceWithCommission(primeBasePrice, COMMISSION_SBP), price_rub_card: calculatePriceWithCommission(primeBasePrice, COMMISSION_CARD) }],
-            prime_plus_item_prices: [{ amount: 1, price_rub_sbp: calculatePriceWithCommission(primePlusBasePrice, COMMISSION_SBP), price_rub_card: calculatePriceWithCommission(primePlusBasePrice, COMMISSION_CARD) }]
-        });
-    } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
-});
-
 // 7. Получение настроек
 app.get('/api/settings', async (req, res) => {
     try {
@@ -535,7 +545,189 @@ app.post('/api/bot-webhook', async (req, res) => {
         console.log(`[WEBHOOK] Is admin? ${ADMIN_CHAT_ID.includes(chatId)}`);
 
         if (ADMIN_CHAT_ID.includes(chatId)) {
-            // Обработка команд для админа
+            // Обработка ввода в режиме ожидания (кнопочная панель)
+            const state = adminStates.get(chatId);
+            if (state) {
+                adminStates.delete(chatId);
+                if (state.action === 'await_курс_store') {
+                    const rate = parseFloat(text.trim());
+                    if (!isNaN(rate)) {
+                        const { error } = await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
+                        await sendTg(chatId, error ? `❌ Ошибка` : `📉 Курс Store: ${rate} руб/$`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_курс_promo') {
+                    const rate = parseFloat(text.trim());
+                    if (!isNaN(rate)) {
+                        const { error } = await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
+                        await sendTg(chatId, error ? `❌ Ошибка` : `📉 Курс Promo: ${rate} руб/$`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_маржа' && state.uc !== undefined) {
+                    const val = parseInt(text.trim());
+                    if (!isNaN(val)) {
+                        const { error } = await supabase.from('products').update({ markup_rub: val }).eq('amount_uc', state.uc);
+                        await sendTg(chatId, error ? `❌ Ошибка` : `✅ Маржа ${state.uc} UC = ${val}₽`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_код') {
+                    const codes = parseMultipleCodes(text.trim());
+                    if (codes.length > 0) {
+                        const rows = codes.map(c => ({ value: c.uc, code: c.code, is_used: false }));
+                        const { error } = await supabase.from('codes_stock').insert(rows);
+                        const msg = error ? `❌ Ошибка БД` : `✅ Добавлено кодов: ${codes.length}`;
+                        await sendTg(chatId, msg, getAdminMainKeyboard());
+                    } else {
+                        await sendTg(chatId, '❌ Формат: UC пробел КОД — можно несколько через пробел или с новой строки\n\nПример: <code>325 ABC123 120 DEF456</code>\nИли:\n<code>325 ABC123\n120 DEF456</code>', getAdminMainKeyboard());
+                    }
+                    return;
+                }
+                if (state.action === 'await_код_batch' && state.uc !== undefined) {
+                    const codes = text.trim().split(/\s+/).filter(s => s.length > 0);
+                    if (codes.length > 0) {
+                        const rows = codes.map(code => ({ value: state.uc!, code, is_used: false }));
+                        const { error } = await supabase.from('codes_stock').insert(rows);
+                        const msg = error ? `❌ Ошибка БД` : `✅ Добавлено ${codes.length} кодов на ${state.uc} UC`;
+                        await sendTg(chatId, msg, getAdminMainKeyboard());
+                    } else {
+                        await sendTg(chatId, '❌ Введите хотя бы один код', getAdminMainKeyboard());
+                    }
+                    return;
+                }
+                if (state.action === 'await_price_usd' && state.uc !== undefined) {
+                    const price = parseFloat(text.trim());
+                    if (!isNaN(price) && price >= 0) {
+                        const group = productGroups[state.uc];
+                        if (group) {
+                            // Получить текущую цену базового
+                            const { data: currentBase } = await supabase
+                                .from('products')
+                                .select('price_usd')
+                                .eq('amount_uc', state.uc)
+                                .single();
+                            const currentBasePrice = currentBase?.price_usd;
+                            if (currentBasePrice && currentBasePrice > 0) {
+                                // Обновить базовый
+                                await supabase
+                                    .from('products')
+                                    .update({ price_usd: price })
+                                    .eq('amount_uc', state.uc);
+                            // Получить текущие цены 60 и 120 для комбинаций
+                            const { data: current60 } = await supabase
+                                .from('products')
+                                .select('price_usd')
+                                .eq('amount_uc', 60)
+                                .single();
+                            const currentPrice60 = current60?.price_usd || 0;
+                            const { data: current120 } = await supabase
+                                .from('products')
+                                .select('price_usd')
+                                .eq('amount_uc', 120)
+                                .single();
+                            const currentPrice120 = current120?.price_usd || 0;
+                            // Обновить группу пропорционально
+                            for (const uc of group) {
+                                if (uc === state.uc) continue;
+                                const { data: currentProd } = await supabase
+                                    .from('products')
+                                    .select('price_usd')
+                                    .eq('amount_uc', uc)
+                                    .single();
+                                if (currentProd) {
+                                    let multiplier: number;
+                                    if (state.uc === 325 && uc === 385) {
+                                        // 385 = 325 + 60
+                                        multiplier = 1 + (currentPrice60 / price);
+                                    } else if (state.uc === 325 && uc === 445) {
+                                        // 445 = 325 + 120
+                                        multiplier = 1 + (currentPrice120 / price);
+                                    } else if (state.uc === 660 && uc === 720) {
+                                        // 720 = 660 + 60
+                                        multiplier = 1 + (currentPrice60 / price);
+                                    } else {
+                                        multiplier = uc / state.uc;
+                                    }
+                                    const newPrice = multiplier * price;
+                                    await supabase
+                                        .from('products')
+                                        .update({ price_usd: newPrice })
+                                        .eq('amount_uc', uc);
+                                }
+                            }
+                                await sendTg(chatId, `✅ Цена обновлена для группы ${state.uc} UC`, getAdminMainKeyboard());
+                            } else {
+                                await sendTg(chatId, '❌ Ошибка: базовая цена не найдена');
+                            }
+                        } else {
+                            // Если не базовый, обновить только этот
+                            const { error } = await supabase
+                                .from('products')
+                                .update({ price_usd: price })
+                                .eq('amount_uc', state.uc);
+                            await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
+                        }
+                    } else {
+                        await sendTg(chatId, '❌ Введите число');
+                    }
+                    return;
+                }
+                if (state.action === 'await_pp_markup') {
+                    const markup = parseInt(text.trim());
+                    if (!isNaN(markup)) {
+                        await supabase.from('settings').update({ pp_markup_rub: markup }).eq('id', 1);
+                        await sendTg(chatId, `👑 Маржа ПП: ${markup}₽`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_pp_usd') {
+                    const price = parseFloat(text.trim());
+                    if (!isNaN(price)) {
+                        await supabase.from('settings').update({ pp_price_usd: price }).eq('id', 1);
+                        await sendTg(chatId, `👑 ПП (10000): ${price}$`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_ticket_usd') {
+                    const price = parseFloat(text.trim());
+                    if (!isNaN(price)) {
+                        await supabase.from('settings').update({ ticket_price_usd: price }).eq('id', 1);
+                        await sendTg(chatId, `🎫 Билеты (100): ${price}$`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_ticket_markup') {
+                    const markup = parseInt(text.trim());
+                    if (!isNaN(markup)) {
+                        await supabase.from('settings').update({ ticket_markup_rub: markup }).eq('id', 1);
+                        await sendTg(chatId, `🎫 Маржа билетов: ${markup}₽`, getAdminMainKeyboard());
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action.startsWith('await_prime_')) {
+                    const key = state.action.replace('await_', '');
+                    const val = parseFloat(text.trim());
+                    if (!isNaN(val)) {
+                        const fieldMap: Record<string, string> = {
+                            'prime_markup': 'prime_markup_rub', 'prime_plus_markup': 'prime_plus_markup_rub',
+                            'prime_1m': 'prime_1m_usd', 'prime_3m': 'prime_3m_usd', 'prime_6m': 'prime_6m_usd', 'prime_12m': 'prime_12m_usd',
+                            'prime_plus_1m': 'prime_plus_1m_usd', 'prime_plus_3m': 'prime_plus_3m_usd', 'prime_plus_6m': 'prime_plus_6m_usd', 'prime_plus_12m': 'prime_plus_12m_usd',
+                            'prime_markup_1m': 'prime_markup_1m_rub', 'prime_markup_3m': 'prime_markup_3m_rub', 'prime_markup_6m': 'prime_markup_6m_rub', 'prime_markup_12m': 'prime_markup_12m_rub',
+                            'prime_plus_markup_1m': 'prime_plus_markup_1m_rub', 'prime_plus_markup_3m': 'prime_plus_markup_3m_rub', 'prime_plus_markup_6m': 'prime_plus_markup_6m_rub', 'prime_plus_markup_12m': 'prime_plus_markup_12m_rub'
+                        };
+                        const field = fieldMap[key];
+                        if (field) {
+                            await supabase.from('settings').update({ [field]: val }).eq('id', 1);
+                            await sendTg(chatId, `✅ Обновлено`, getAdminMainKeyboard());
+                        }
+                    } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+            }
+
+            // Обработка команд для админа (текстовые команды сохранены для совместимости)
             if (text === '/start') {
                 console.log(`[START] Processing /start for admin ${chatId}`);
                 
@@ -570,15 +762,21 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text === '/list') {
                 const { data: products } = await supabase.from('products').select('*').order('amount_uc');
-                let m = "📊 <b>Наценки:</b>\n";
-                products?.forEach(p => m += `💎 ${p.amount_uc} UC | +${p.markup_rub}₽ | $${p.price_usd}\n`);
+                let m = "📊 <b>Наценки UC:</b>\n";
+                products?.forEach((p: any) => m += `💎 ${p.amount_uc} UC | +${p.markup_rub}₽\n`);
                 await sendTg(chatId, m);
             }
 
             if (text.toLowerCase().startsWith('код ')) {
-                const [_, uc, code] = text.split(' ');
-                const { error } = await supabase.from('codes_stock').insert([{ value: parseInt(uc), code: code, is_used: false }]);
-                await sendTg(chatId, error ? `❌ Ошибка БД` : `✅ Код на ${uc} UC добавлен!`);
+                const body = text.slice(4).trim();
+                const codes = parseMultipleCodes(body);
+                if (codes.length > 0) {
+                    const rows = codes.map(c => ({ value: c.uc, code: c.code, is_used: false }));
+                    const { error } = await supabase.from('codes_stock').insert(rows);
+                    await sendTg(chatId, error ? `❌ Ошибка БД` : `✅ Добавлено кодов: ${codes.length}`);
+                } else {
+                    await sendTg(chatId, '❌ Формат: код UC КОД [UC КОД ...]\nМожно через пробел или с новой строки.\nПример: код 325 ABC123 120 DEF456');
+                }
             }
 
             if (text.toLowerCase().startsWith('освободить')) {
@@ -606,14 +804,9 @@ app.post('/api/bot-webhook', async (req, res) => {
                 const parts = text.split(' ');
                 const uc = parseInt(parts[1]);
                 const price = parseFloat(parts[2]);
-                
-                // Check if it's a base denomination
-                const { data: baseDenom } = await supabase.from('base_denominations').select('*').eq('amount_uc', uc).single();
-                if (baseDenom) {
-                    const { error } = await supabase.from('base_denominations').update({ price_usd: price }).eq('amount_uc', uc);
-                    await sendTg(chatId, error ? `❌ Ошибка` : `✅ Базовая цена ${uc} UC обновлена: ${price}$`);
-                } else {
-                    await sendTg(chatId, `❌ ${uc} UC не является базовым номиналом. Цена рассчитывается динамически на основе базовых номиналов. Используйте 'маржа [uc] [руб]' для изменения наценки.`);
+                if (!isNaN(uc) && !isNaN(price) && price >= 0) {
+                    const { error } = await supabase.from('products').update({ price_usd: price }).eq('amount_uc', uc);
+                    await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${uc} UC = ${price}$`);
                 }
             }
 
@@ -641,22 +834,10 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, `🎫 Маржа билетов: ${markup}₽`);
             }
 
-            if (text.toLowerCase().startsWith('prime_usd ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                const { error } = await supabase.from('settings').update({ prime_price_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Базовая цена Prime: ${price}$`);
-            }
-
             if (text.toLowerCase().startsWith('prime_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
                 await supabase.from('settings').update({ prime_markup_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Маржа Prime: ${markup}₽`);
-            }
-
-            if (text.toLowerCase().startsWith('prime_plus_usd ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                const { error } = await supabase.from('settings').update({ prime_plus_price_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Базовая цена Prime Plus: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_markup ')) {
@@ -665,97 +846,69 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, `🎮 Маржа Prime Plus: ${markup}₽`);
             }
 
-            // Команды для цен периодов Prime
+            // Команды для цен периодов Prime (в USD)
             if (text.toLowerCase().startsWith('prime_1m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_1m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 1 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_1m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 1 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_3m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_3m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 3 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_3m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 3 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_6m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_6m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 6 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_6m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 6 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_12m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_12m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 12 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_12m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 12 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_1m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_1m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 1 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_1m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 1 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_3m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_3m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 3 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_3m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 3 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_6m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_6m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_6m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}$`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_12m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_12m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 12 мес: ${price}₽`);
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_12m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 12 мес: ${price}$`);
             }
 
             if (text === '/admin_manage') {
                 const keyboard = {
                     inline_keyboard: [
                         [{ text: "💎 UC", callback_data: "m_uc" }],
-                        [{ text: "🎭 Skins", callback_data: "m_skins" }]
+                        [{ text: "🎭 Skins", callback_data: "m_skins" }],
+                        [{ text: "🔙 Назад", callback_data: "adm_back" }]
                     ]
                 };
-                await sendTg(chatId, "Выберите категорию для управления товарами:", keyboard);
+                await sendTg(chatId, "🛒 <b>Управление товарами</b>\n\nВыберите категорию:", keyboard);
             }
 
             if (text === '/admin') {
-                const commandsText = `🔧 <b>Команды управления:</b>\n\n` +
-                    `💰 <b>Цены и курсы:</b>\n` +
-                    `<code>маржа [uc] [руб]</code> - наценка на UC\n` +
-                    `<code>курс_store [руб/$]</code> - курс для магазина\n` +
-                    `<code>курс_promo [руб/$]</code> - курс для промо\n` +
-                    `<code>price_usd [uc] [usd]</code> - цена базового номинала\n\n` +
-                    `👑 <b>ПП и билеты:</b>\n` +
-                    `<code>pp_usd [usd]</code> - базовая цена ПП\n` +
-                    `<code>pp_markup [руб]</code> - наценка на ПП\n` +
-                    `<code>ticket_usd [usd]</code> - базовая цена билетов\n` +
-                    `<code>ticket_markup [руб]</code> - наценка на билеты\n\n` +
-                    `🎮 <b>Prime подписки:</b>\n` +
-                    `<code>prime_usd [usd]</code> - базовая цена Prime\n` +
-                    `<code>prime_markup [руб]</code> - наценка Prime\n` +
-                    `<code>prime_plus_usd [usd]</code> - базовая цена Prime Plus\n` +
-                    `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n` +
-                    `<code>prime_1m [руб]</code> - цена Prime 1 мес\n` +
-                    `<code>prime_3m [руб]</code> - цена Prime 3 мес\n` +
-                    `<code>prime_6m [руб]</code> - цена Prime 6 мес\n` +
-                    `<code>prime_12m [руб]</code> - цена Prime 12 мес\n` +
-                    `<code>prime_plus_1m [руб]</code> - цена Prime Plus 1 мес\n` +
-                    `<code>prime_plus_3m [руб]</code> - цена Prime Plus 3 мес\n` +
-                    `<code>prime_plus_6m [руб]</code> - цена Prime Plus 6 мес\n` +
-                    `<code>prime_plus_12m [руб]</code> - цена Prime Plus 12 мес\n\n` +
-                    `📦 <b>Коды и товары:</b>\n` +
-                    `<code>код [uc] [код]</code> - добавить код\n` +
-                    `<code>освободить</code> - освободить зарезервированные коды\n` +
-                    `<code>/list</code> - показать наценки\n` +
-                    `<code>/admin_manage</code> - управление товарами`;
-
-                await sendTg(chatId, commandsText);
+                const text2 = `🔧 <b>Админ-панель</b>\n\nВыберите действие:`;
+                await sendTg(chatId, text2, getAdminMainKeyboard());
             }
 
         } else {
@@ -776,7 +929,7 @@ app.post('/api/bot-webhook', async (req, res) => {
             }
 
             // Ограничение админ-команд для юзеров
-        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_usd', 'prime_markup', 'prime_plus_usd', 'prime_plus_markup', '/admin', '/admin_manage'].some(cmd => text.toLowerCase().startsWith(cmd))) {
+        if (['курс', 'маржа', 'код', 'освободить', 'price_usd', 'pp_markup', 'pp_usd', 'ticket_usd', 'ticket_markup', 'prime_markup', 'prime_plus_markup', '/admin', '/admin_manage'].some(cmd => text.toLowerCase().startsWith(cmd))) {
             await sendTg(chatId, "доступно только администратору");
         }
     }
@@ -845,47 +998,310 @@ if (message && message.photo && message.caption) {
         const msgId = callback_query.message.message_id;
 
         if (data === 'admin_panel') {
-            const commandsText = `🔧 <b>Команды управления:</b>\n\n` +
-                `💰 <b>Цены и курсы:</b>\n` +
-                `<code>маржа [uc] [руб]</code> - наценка на UC\n` +
-                `<code>курс_store [руб/$]</code> - курс для магазина\n` +
-                `<code>курс_promo [руб/$]</code> - курс для промо\n` +
-                `<code>price_usd [uc] [usd]</code> - цена базового номинала\n\n` +
-                `👑 <b>ПП и билеты:</b>\n` +
-                `<code>pp_usd [usd]</code> - базовая цена ПП\n` +
-                `<code>pp_markup [руб]</code> - наценка на ПП\n` +
-                `<code>ticket_usd [usd]</code> - базовая цена билетов\n` +
-                `<code>ticket_markup [руб]</code> - наценка на билеты\n\n` +
-                `🎮 <b>Prime подписки:</b>\n` +
-                `<code>prime_usd [usd]</code> - базовая цена Prime\n` +
-                `<code>prime_markup [руб]</code> - наценка Prime\n` +
-                `<code>prime_plus_usd [usd]</code> - базовая цена Prime Plus\n` +
-                `<code>prime_plus_markup [руб]</code> - наценка Prime Plus\n` +
-                `<code>prime_1m [руб]</code> - цена Prime 1 мес\n` +
-                `<code>prime_3m [руб]</code> - цена Prime 3 мес\n` +
-                `<code>prime_6m [руб]</code> - цена Prime 6 мес\n` +
-                `<code>prime_12m [руб]</code> - цена Prime 12 мес\n` +
-                `<code>prime_plus_1m [руб]</code> - цена Prime Plus 1 мес\n` +
-                `<code>prime_plus_3m [руб]</code> - цена Prime Plus 3 мес\n` +
-                `<code>prime_plus_6m [руб]</code> - цена Prime Plus 6 мес\n` +
-                `<code>prime_plus_12m [руб]</code> - цена Prime Plus 12 мес\n\n` +
-                `📦 <b>Коды и товары:</b>\n` +
-                `<code>код [uc] [код]</code> - добавить код\n` +
-                `<code>освободить</code> - освободить зарезервированные коды\n` +
-                `<code>/list</code> - показать наценки\n` +
-                `<code>/admin_manage</code> - управление товарами`;
+            const text = `🔧 <b>Админ-панель</b>\n\nВыберите действие:`;
+            await editTg(currentChatId, msgId, text, getAdminMainKeyboard());
+        }
 
-            await editTg(currentChatId, msgId, commandsText);
+        if (data === 'adm_back') {
+            adminStates.delete(currentChatId);
+            const text = `🔧 <b>Админ-панель</b>\n\nВыберите действие:`;
+            await editTg(currentChatId, msgId, text, getAdminMainKeyboard());
+        }
+
+        if (data === 'adm_rates') {
+            const { data: s } = await supabase.from('settings').select('usd_rate_store, usd_rate_promo, usd_rate').single();
+            const storeRate = s?.usd_rate_store ?? s?.usd_rate ?? '-';
+            const promoRate = s?.usd_rate_promo ?? s?.usd_rate ?? '-';
+            const text = `💰 <b>Курсы валют</b>\n\nStore: ${storeRate} руб/$\nPromo: ${promoRate} руб/$`;
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "📉 Курс Store", callback_data: "adm_курс_store" }, { text: "📉 Курс Promo", callback_data: "adm_курс_promo" }],
+                    [{ text: "90", callback_data: "adm_rate_store_90" }, { text: "95", callback_data: "adm_rate_store_95" }, { text: "100", callback_data: "adm_rate_store_100" }],
+                    [{ text: "90 promo", callback_data: "adm_rate_promo_90" }, { text: "95 promo", callback_data: "adm_rate_promo_95" }, { text: "100 promo", callback_data: "adm_rate_promo_100" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data === 'adm_курс_store') {
+            adminStates.set(currentChatId, { action: 'await_курс_store' });
+            await editTg(currentChatId, msgId, `📉 Введите курс Store (руб/$):`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+
+        if (data === 'adm_курс_promo') {
+            adminStates.set(currentChatId, { action: 'await_курс_promo' });
+            await editTg(currentChatId, msgId, `📉 Введите курс Promo (руб/$):`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+
+        if (data.startsWith('adm_rate_store_')) {
+            const rate = parseFloat(data.replace('adm_rate_store_', ''));
+            await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
+            await answerCallback(callback_query.id, `Store: ${rate} руб/$`);
+            const text = `💰 <b>Курсы валют</b>\n\nStore: ${rate} руб/$\n`;
+            const { data: s } = await supabase.from('settings').select('usd_rate_promo').single();
+            const promoRate = s?.usd_rate_promo ?? '-';
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "📉 Курс Store", callback_data: "adm_курс_store" }, { text: "📉 Курс Promo", callback_data: "adm_курс_promo" }],
+                    [{ text: "90", callback_data: "adm_rate_store_90" }, { text: "95", callback_data: "adm_rate_store_95" }, { text: "100", callback_data: "adm_rate_store_100" }],
+                    [{ text: "90 promo", callback_data: "adm_rate_promo_90" }, { text: "95 promo", callback_data: "adm_rate_promo_95" }, { text: "100 promo", callback_data: "adm_rate_promo_100" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text + `Promo: ${promoRate} руб/$`, keyboard);
+        }
+
+        if (data.startsWith('adm_rate_promo_')) {
+            const rate = parseFloat(data.replace('adm_rate_promo_', ''));
+            await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
+            await answerCallback(callback_query.id, `Promo: ${rate} руб/$`);
+            const { data: s } = await supabase.from('settings').select('usd_rate_store').single();
+            const storeRate = s?.usd_rate_store ?? '-';
+            const text = `💰 <b>Курсы валют</b>\n\nStore: ${storeRate} руб/$\nPromo: ${rate} руб/$`;
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "📉 Курс Store", callback_data: "adm_курс_store" }, { text: "📉 Курс Promo", callback_data: "adm_курс_promo" }],
+                    [{ text: "90", callback_data: "adm_rate_store_90" }, { text: "95", callback_data: "adm_rate_store_95" }, { text: "100", callback_data: "adm_rate_store_100" }],
+                    [{ text: "90 promo", callback_data: "adm_rate_promo_90" }, { text: "95 promo", callback_data: "adm_rate_promo_95" }, { text: "100 promo", callback_data: "adm_rate_promo_100" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data === 'adm_markup') {
+            adminStates.delete(currentChatId);
+            const { data: products } = await supabase.from('products').select('*').order('amount_uc');
+            let text = `💎 <b>Маржа UC</b>\n\nВыберите пакет:`;
+            const rows: any[] = [];
+            if (products && products.length > 0) {
+                products.forEach((p: any) => {
+                    rows.push([{ text: `${p.amount_uc} UC (+${p.markup_rub}₽)`, callback_data: `adm_маржа_${p.amount_uc}` }]);
+                });
+            }
+            rows.push([{ text: "🔙 Назад", callback_data: "adm_back" }]);
+            await editTg(currentChatId, msgId, text, { inline_keyboard: rows });
+        }
+
+        if (data.startsWith('adm_маржа_') && !data.startsWith('adm_маржа_set_')) {
+            const uc = parseInt(data.replace('adm_маржа_', ''));
+            const presetKeyboard = {
+                inline_keyboard: [
+                    [{ text: "0", callback_data: `adm_маржа_set_${uc}_0` }, { text: "50", callback_data: `adm_маржа_set_${uc}_50` }, { text: "100", callback_data: `adm_маржа_set_${uc}_100` }],
+                    [{ text: "150", callback_data: `adm_маржа_set_${uc}_150` }, { text: "200", callback_data: `adm_маржа_set_${uc}_200` }],
+                    [{ text: "✏️ Ввести вручную", callback_data: `adm_маржа_input_${uc}` }],
+                    [{ text: "🔙 Назад", callback_data: "adm_markup" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, `💎 Маржа для <b>${uc} UC</b> — выберите или введите:`, presetKeyboard);
+        }
+
+        if (data.startsWith('adm_маржа_input_')) {
+            const uc = parseInt(data.replace('adm_маржа_input_', ''));
+            adminStates.set(currentChatId, { action: 'await_маржа', uc });
+            await editTg(currentChatId, msgId, `💎 Введите маржу для <b>${uc} UC</b> в руб:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_markup" }]] });
+        }
+
+        if (data.startsWith('adm_маржа_set_')) {
+            const parts = data.replace('adm_маржа_set_', '').split('_');
+            const uc = parseInt(parts[0]);
+            const val = parseInt(parts[1]);
+            const { error } = await supabase.from('products').update({ markup_rub: val }).eq('amount_uc', uc);
+            await answerCallback(callback_query.id, error ? "Ошибка" : `Маржа ${uc} UC = ${val}₽`);
+            const { data: products } = await supabase.from('products').select('*').order('amount_uc');
+            let text = `💎 <b>Маржа UC</b>\n\n✅ ${uc} UC: ${val}₽`;
+            const rows: any[] = [];
+            if (products && products.length > 0) {
+                products.forEach((p: any) => {
+                    rows.push([{ text: `${p.amount_uc} UC (+${p.markup_rub}₽)`, callback_data: `adm_маржа_${p.amount_uc}` }]);
+                });
+            }
+            rows.push([{ text: "🔙 Назад", callback_data: "adm_back" }]);
+            await editTg(currentChatId, msgId, text, { inline_keyboard: rows });
+        }
+
+        if (data === 'adm_codes') {
+            adminStates.delete(currentChatId);
+            const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
+            const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
+            const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
+            const text = `📦 <b>Коды</b>\n\n<b>Выберите номинал</b> — затем вставьте коды (по одному в строке или через пробел):`;
+            const keyboard = {
+                inline_keyboard: [
+                    ucButtons.slice(0, 4),
+                    ucButtons.slice(4, 8),
+                    [{ text: "➕ Разные номиналы (UC КОД UC КОД...)", callback_data: "adm_код" }],
+                    [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data.startsWith('adm_код_batch_')) {
+            const uc = parseInt(data.replace('adm_код_batch_', ''));
+            if (!isNaN(uc)) {
+                adminStates.set(currentChatId, { action: 'await_код_batch', uc });
+                await editTg(currentChatId, msgId, `📦 <b>${uc} UC</b> — вставьте коды одним сообщением:\n\nПо одному в строке или через пробел. Например:\n<code>CODE1\nCODE2\nCODE3</code>\n\nили <code>CODE1 CODE2 CODE3</code>`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_codes" }]] });
+            }
+        }
+
+        if (data === 'adm_код') {
+            adminStates.set(currentChatId, { action: 'await_код' });
+            await editTg(currentChatId, msgId, `📦 Введите коды (можно несколько номиналов):\n\n<b>Формат:</b> UC пробел КОД\n<code>325 ABC123 120 DEF456</code>`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+
+        if (data === 'adm_освободить') {
+            const { error } = await supabase.from('codes_stock').update({ is_used: false, status: null }).eq('status', 'RESERVED');
+            await answerCallback(callback_query.id, error ? "Ошибка" : "Освобождено");
+            const text = `📦 <b>Коды</b>\n\n${error ? '❌ Ошибка' : '✅ RESERVED коды освобождены'}`;
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "➕ Добавить код", callback_data: "adm_код" }],
+                    [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data === 'adm_pp') {
+            const { data: s } = await supabase.from('settings').select('pp_price_usd, pp_markup_rub, ticket_price_usd, ticket_markup_rub').single();
+            const text = `👑 <b>ПП и билеты</b>\n\nПП: ${s?.pp_price_usd ?? '-'}$ + ${s?.pp_markup_rub ?? '-'}₽\nБилеты: ${s?.ticket_price_usd ?? '-'}$ + ${s?.ticket_markup_rub ?? '-'}₽`;
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "👑 ПП цена $", callback_data: "adm_pp_usd" }, { text: "👑 ПП маржа ₽", callback_data: "adm_pp_markup" }],
+                    [{ text: "🎫 Билеты $", callback_data: "adm_ticket_usd" }, { text: "🎫 Билеты маржа ₽", callback_data: "adm_ticket_markup" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data === 'adm_pp_usd') {
+            adminStates.set(currentChatId, { action: 'await_pp_usd' });
+            await editTg(currentChatId, msgId, `👑 Введите цену ПП (10000) в $:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+        if (data === 'adm_pp_markup') {
+            adminStates.set(currentChatId, { action: 'await_pp_markup' });
+            await editTg(currentChatId, msgId, `👑 Введите маржу ПП в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+        if (data === 'adm_ticket_usd') {
+            adminStates.set(currentChatId, { action: 'await_ticket_usd' });
+            await editTg(currentChatId, msgId, `🎫 Введите цену билетов (100 шт) в $:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+        if (data === 'adm_ticket_markup') {
+            adminStates.set(currentChatId, { action: 'await_ticket_markup' });
+            await editTg(currentChatId, msgId, `🎫 Введите маржу билетов в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+        }
+
+        if (data === 'adm_prime') {
+            const { data: s } = await supabase.from('settings').select('*').single();
+            let text = `🎮 <b>Prime</b> (цена в USD + наценка по месяцам)\n\n`;
+            if (s) {
+                text += `Prime: маржа +${s.prime_markup_rub ?? 0}₽\n`;
+                text += `1м: ${s.prime_1m_usd ?? '-'}$ (+${s.prime_markup_1m_rub ?? 0}₽) | 3м: ${s.prime_3m_usd ?? '-'}$ (+${s.prime_markup_3m_rub ?? 0}₽)\n`;
+                text += `6м: ${s.prime_6m_usd ?? '-'}$ (+${s.prime_markup_6m_rub ?? 0}₽) | 12м: ${s.prime_12m_usd ?? '-'}$ (+${s.prime_markup_12m_rub ?? 0}₽)\n\n`;
+                text += `Prime Plus: маржа +${s.prime_plus_markup_rub ?? 0}₽\n`;
+                text += `1м: ${s.prime_plus_1m_usd ?? '-'}$ (+${s.prime_plus_markup_1m_rub ?? 0}₽) | 3м: ${s.prime_plus_3m_usd ?? '-'}$ (+${s.prime_plus_markup_3m_rub ?? 0}₽)\n`;
+                text += `6м: ${s.prime_plus_6m_usd ?? '-'}$ (+${s.prime_plus_markup_6m_rub ?? 0}₽) | 12м: ${s.prime_plus_12m_usd ?? '-'}$ (+${s.prime_plus_markup_12m_rub ?? 0}₽)`;
+            }
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "1м цена $", callback_data: "adm_prime_1m" }, { text: "1м наценка ₽", callback_data: "adm_prime_markup_1m" }],
+                    [{ text: "3м цена $", callback_data: "adm_prime_3m" }, { text: "3м наценка ₽", callback_data: "adm_prime_markup_3m" }],
+                    [{ text: "6м цена $", callback_data: "adm_prime_6m" }, { text: "6м наценка ₽", callback_data: "adm_prime_markup_6m" }],
+                    [{ text: "12м цена $", callback_data: "adm_prime_12m" }, { text: "12м наценка ₽", callback_data: "adm_prime_markup_12m" }],
+                    [{ text: "Plus 1м цена $", callback_data: "adm_prime_plus_1m" }, { text: "Plus 1м наценка ₽", callback_data: "adm_prime_plus_markup_1m" }],
+                    [{ text: "Plus 3м цена $", callback_data: "adm_prime_plus_3m" }, { text: "Plus 3м наценка ₽", callback_data: "adm_prime_plus_markup_3m" }],
+                    [{ text: "Plus 6м цена $", callback_data: "adm_prime_plus_6m" }, { text: "Plus 6м наценка ₽", callback_data: "adm_prime_plus_markup_6m" }],
+                    [{ text: "Plus 12м цена $", callback_data: "adm_prime_plus_12m" }, { text: "Plus 12м наценка ₽", callback_data: "adm_prime_plus_markup_12m" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data.startsWith('adm_prime_') && !data.startsWith('adm_prime_plus_')) {
+            const key = data.replace('adm_prime_', '');
+            if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
+                const actionKey = key === 'markup' ? 'prime_markup' : `prime_${key}`;
+                adminStates.set(currentChatId, { action: `await_${actionKey}` });
+                const label = key === 'markup' 
+                    ? 'Prime маржа ₽' 
+                    : `Prime ${key} $`;
+                await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+            }
+        }
+
+        // Обработка наценок по месяцам для Prime
+        if (data.startsWith('adm_prime_markup_')) {
+            const month = data.replace('adm_prime_markup_', '');
+            if (['1m', '3m', '6m', '12m'].includes(month)) {
+                adminStates.set(currentChatId, { action: `await_prime_markup_${month}` });
+                await editTg(currentChatId, msgId, `🎮 Введите наценку Prime ${month} в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_prime" }]] });
+            }
+        }
+
+        if (data.startsWith('adm_prime_plus_')) {
+            const key = data.replace('adm_prime_plus_', '');
+            if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
+                const actionKey = key === 'markup' ? 'prime_plus_markup' : `prime_plus_${key}`;
+                adminStates.set(currentChatId, { action: `await_${actionKey}` });
+                const label = key === 'markup' 
+                    ? 'Prime Plus маржа ₽' 
+                    : `Plus ${key} $`;
+                await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+            }
+        }
+
+        // Обработка наценок по месяцам для Prime Plus
+        if (data.startsWith('adm_prime_plus_markup_')) {
+            const month = data.replace('adm_prime_plus_markup_', '');
+            if (['1m', '3m', '6m', '12m'].includes(month)) {
+                adminStates.set(currentChatId, { action: `await_prime_plus_markup_${month}` });
+                await editTg(currentChatId, msgId, `🎮 Введите наценку Prime Plus ${month} в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_prime" }]] });
+            }
+        }
+
+        if (data === 'adm_price_usd') {
+            const { data: products } = await supabase.from('products').select('*').order('amount_uc');
+            let text = `💵 <b>Цены товаров (в USD)</b>\n\nВыберите номинал:`;
+            const rows: any[] = [];
+            if (products?.length) {
+                products.forEach((p: any) => {
+                    rows.push([{ text: `${p.amount_uc} UC = ${p.price_usd}$`, callback_data: `adm_price_${p.amount_uc}` }]);
+                });
+            }
+            rows.push([{ text: "🔙 Назад", callback_data: "adm_back" }]);
+            await editTg(currentChatId, msgId, text, { inline_keyboard: rows });
+        }
+
+        if (data.startsWith('adm_price_') && data !== 'adm_price_usd') {
+            const uc = parseInt(data.replace('adm_price_', ''));
+            if (!isNaN(uc)) {
+                adminStates.set(currentChatId, { action: 'await_price_usd', uc });
+                await editTg(currentChatId, msgId, `💵 Введите цену для <b>${uc} UC</b> в $:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
+            }
+        }
+
+        if (data === 'adm_list') {
+            const { data: products } = await supabase.from('products').select('*').order('amount_uc');
+            let m = "📊 <b>Наценки UC:</b>\n";
+            products?.forEach((p: any) => m += `💎 ${p.amount_uc} UC | +${p.markup_rub}₽\n`);
+            await editTg(currentChatId, msgId, m, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_back" }]] });
         }
 
         if (data === 'admin_manage') {
             const keyboard = {
                 inline_keyboard: [
                     [{ text: "💎 UC", callback_data: "m_uc" }],
-                    [{ text: "🎭 Skins", callback_data: "m_skins" }]
+                    [{ text: "🎭 Skins", callback_data: "m_skins" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
-            await editTg(currentChatId, msgId, "Выберите категорию для управления товарами:", keyboard);
+            await editTg(currentChatId, msgId, "🛒 <b>Управление товарами</b>\n\nВыберите категорию:", keyboard);
         }
 
         if (data === 'm_uc') {
@@ -894,7 +1310,7 @@ if (message && message.photo && message.caption) {
                 let text = "💎 Товары UC:\n";
                 const keyboard: any = { inline_keyboard: [] };
                 products.forEach((p: any) => {
-                    text += `${p.amount_uc} UC - ${p.price_usd}$ (+${p.markup_rub}₽)\n`;
+                    text += `${p.amount_uc} UC | +${p.markup_rub}₽\n`;
                     keyboard.inline_keyboard.push([{ text: `❌ Удалить ${p.amount_uc} UC`, callback_data: `del_products_${p.id}` }]);
                 });
                 keyboard.inline_keyboard.push([{ text: "🔙 Назад", callback_data: "admin_manage" }]);
