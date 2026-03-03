@@ -41,16 +41,6 @@ const automationTimers = new Map<number, NodeJS.Timeout>();
 type AdminState = { action: string; uc?: number };
 const adminStates = new Map<string, AdminState>();
 
-// Группы продуктов для пропорционального обновления цен
-const productGroups: Record<number, number[]> = {
-  60: [60, 120, 180, 240],
-  325: [325, 385, 445],
-  660: [660, 720],
-  1800: [1800, 1920, 2125, 2460],
-  3850: [3850, 4510, 5650],
-  8100: [8100, 9900, 11950, 16200, 24300, 32400, 40500, 81000]
-};
-
 // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ TELEGRAM ---
 
 const sendTg = async (chatId: string | number | string[], text: string, replyMarkup?: any) => {
@@ -201,24 +191,24 @@ app.get('/api/test-activate', async (req, res) => {
     res.json({ result, account: account.email });
 });
 
-// 1.5. Получение товаров Prime (Prime и Prime Plus) с расчетом по месячным ценам в USD
+// 1.5. Получение товаров Prime (Prime и Prime Plus)
 app.get('/api/prime-prices', async (req, res) => {
     try {
         const { data: settings } = await supabase.from('settings').select('*').single();
         
         if (!settings) return res.status(500).json({ error: 'DB Data not found' });
 
-        const usdRate = settings.usd_rate_store;
-        
+        const primeMarkup = Number(settings.prime_markup_rub) || 0;
+        const primePlusMarkup = Number(settings.prime_plus_markup_rub) || 0;
         const primeProducts = [
             {
                 id: 'prime',
                 title: 'Prime',
                 periods: [
-                    { months: 1, price: Math.ceil((Number(settings.prime_1m_usd) || 2.99) * usdRate) + (Number(settings.prime_markup_1m_rub) || 0) },
-                    { months: 3, price: Math.ceil((Number(settings.prime_3m_usd) || 8.99) * usdRate) + (Number(settings.prime_markup_3m_rub) || 0) },
-                    { months: 6, price: Math.ceil((Number(settings.prime_6m_usd) || 16.99) * usdRate) + (Number(settings.prime_markup_6m_rub) || 0) },
-                    { months: 12, price: Math.ceil((Number(settings.prime_12m_usd) || 24.99) * usdRate) + (Number(settings.prime_markup_12m_rub) || 0) }
+                    { months: 1, price: (Number(settings.prime_1m_rub) || 150) + primeMarkup },
+                    { months: 3, price: (Number(settings.prime_3m_rub) || 400) + primeMarkup },
+                    { months: 6, price: (Number(settings.prime_6m_rub) || 750) + primeMarkup },
+                    { months: 12, price: (Number(settings.prime_12m_rub) || 1400) + primeMarkup }
                 ],
                 image_url: '/prime.jpg',
                 description: 'Prime Gaming подписка'
@@ -227,10 +217,10 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime_plus',
                 title: 'Prime Plus',
                 periods: [
-                    { months: 1, price: Math.ceil((Number(settings.prime_plus_1m_usd) || 4.99) * usdRate) + (Number(settings.prime_plus_markup_1m_rub) || 0) },
-                    { months: 3, price: Math.ceil((Number(settings.prime_plus_3m_usd) || 14.99) * usdRate) + (Number(settings.prime_plus_markup_3m_rub) || 0) },
-                    { months: 6, price: Math.ceil((Number(settings.prime_plus_6m_usd) || 25.99) * usdRate) + (Number(settings.prime_plus_markup_6m_rub) || 0) },
-                    { months: 12, price: Math.ceil((Number(settings.prime_plus_12m_usd) || 39.99) * usdRate) + (Number(settings.prime_plus_markup_12m_rub) || 0) }
+                    { months: 1, price: (Number(settings.prime_plus_1m_rub) || 250) + primePlusMarkup },
+                    { months: 3, price: (Number(settings.prime_plus_3m_rub) || 700) + primePlusMarkup },
+                    { months: 6, price: (Number(settings.prime_plus_6m_rub) || 1300) + primePlusMarkup },
+                    { months: 12, price: (Number(settings.prime_plus_12m_rub) || 2400) + primePlusMarkup }
                 ],
                 image_url: '/prime-plus.jpg',
                 description: 'Prime Gaming Plus подписка'
@@ -240,54 +230,39 @@ app.get('/api/prime-prices', async (req, res) => {
     } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
 
-// 2. Получение товаров UC с расчетом цены
+// 2. Получение товаров (UC по ID) — цены складываются из базовых номиналов (60, 325, 660, 1800, 3850, 8100)
 app.get('/api/products', async (req, res) => {
     try {
         const { store } = req.query; // 'store' или 'promo'
         const { data: settings } = await supabase.from('settings').select('*').single();
         const { data: products } = await supabase.from('products').select('*').order('sort_order');
+        const { data: baseDenoms } = await supabase.from('base_denominations').select('*').order('amount_uc', { ascending: false });
         
-        if (!settings || !products) return res.status(500).json({ error: 'DB Data not found' });
+        if (!settings || !products || !baseDenoms) return res.status(500).json({ error: 'DB Data not found' });
 
-        const usdRate = store === 'promo' ? settings.usd_rate_promo : settings.usd_rate_store;
+        const usdRate = store === 'promo' ? (settings.usd_rate_promo || settings.usd_rate || 90) : (settings.usd_rate_store || settings.usd_rate || 90);
 
-        // Базовые номиналы для расчета комбинированных
-        const baseAmounts = [60, 325, 660, 1800, 3850, 8100];
-        const baseProducts = products.filter(p => baseAmounts.includes(p.amount_uc));
-
-        // Функция расчета цены для комбинированного номинала
-        function calculateUCPrice(amount: number): number {
-            if (amount === 0) return 0;
-            let remaining = amount;
-            let total = 0;
-            // Сортируем базовые по убыванию
-            const sortedBases = baseProducts
-                .map(p => ({
-                    ...p,
-                    basePrice: (p.price_usd * usdRate + (p.markup_rub || 0)) * (store === 'promo' ? 1 : (1 + settings.fee_percent))
-                }))
-                .sort((a, b) => b.amount_uc - a.amount_uc);
-            
-            for (const base of sortedBases) {
-                while (remaining >= base.amount_uc) {
-                    total += base.basePrice;
-                    remaining -= base.amount_uc;
+        const calculateUCPrice = (ucAmount: number, baseDenominations: any[], usdRate: number, markupRub: number, feePercent: number, isPromo: boolean) => {
+            let totalUsd = 0;
+            let remaining = ucAmount;
+            for (const denom of baseDenominations) {
+                if (remaining >= denom.amount_uc) {
+                    const count = Math.floor(remaining / denom.amount_uc);
+                    totalUsd += count * denom.price_usd;
+                    remaining -= count * denom.amount_uc;
                 }
             }
-            return Math.ceil(total);
-        }
+            if (remaining > 0) {
+                const minDenom = baseDenominations.find((d: any) => d.amount_uc === 60);
+                if (minDenom) totalUsd += (remaining / 60) * minDenom.price_usd;
+                }
+            const basePrice = (totalUsd * usdRate) + markupRub;
+            return Math.ceil(basePrice);
+        };
 
-        // Список комбинированных номиналов
-        const comboAmounts = [120, 180, 240, 385, 445, 720, 985, 1320, 1920, 2125, 2460, 4510, 5650, 9900, 16200, 24300, 32400, 40500, 81000];
-
-        // Основные товары из БД
         const list = products.map(p => {
-            // Прямой расчет: (цена_в_USD * курс) + наценка + комиссия
-            const basePrice = (p.price_usd * usdRate) + (p.markup_rub || 0);
-            const finalPrice = store === 'promo' 
-                ? Math.ceil(basePrice)  // промо без комиссии
-                : Math.ceil(basePrice * (1 + settings.fee_percent));  // store с комиссией
-            
+            const productMarkup = p.markup_rub || 0;
+            const finalPrice = calculateUCPrice(p.amount_uc, baseDenoms, usdRate, productMarkup, settings.fee_percent, store === 'promo');
             return {
                 id: p.id,
                 amount_uc: p.amount_uc,
@@ -295,70 +270,52 @@ app.get('/api/products', async (req, res) => {
                 image_url: p.image_url
             };
         });
-
-        // Добавляем комбинированные номиналы
-        comboAmounts.forEach(amount => {
-            // Находим ближайший базовый для изображения
-            const closestBase = baseProducts.reduce((prev, curr) => 
-                Math.abs(curr.amount_uc - amount) < Math.abs(prev.amount_uc - amount) ? curr : prev
-            );
-            list.push({
-                id: `combo_${amount}`,
-                amount_uc: amount,
-                price: calculateUCPrice(amount),
-                image_url: closestBase.image_url
-            });
-        });
-
-        // Сортируем весь список по amount_uc
-        list.sort((a, b) => a.amount_uc - b.amount_uc);
-
         res.json(list);
-    } catch (e) { 
-        console.error('Products API error:', e);
-        res.status(500).json({ error: 'Internal Error' }); 
-    }
+    } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
 
-// 3. ПОЛУЧЕНИЕ ПРОМОКОДОВ (считаются из реальных кодов в наличии)
+// 3. ПОЛУЧЕНИЕ ПРОМОКОДОВ (ДЛЯ СКИНОВ/КОДОВ)
 app.get('/api/promo-products', async (req, res) => {
     try {
         const { data: settings } = await supabase.from('settings').select('*').single();
-        const { data: products } = await supabase.from('products').select('*').order('sort_order');
         const { data: stock } = await supabase.from('codes_stock').select('value').eq('is_used', false);
         
-        if (!settings || !products || !stock) return res.status(500).json({ error: 'Data not found' });
+        if (!settings || !stock) return res.status(500).json({ error: 'Data not found' });
 
-        // Группируем коды по номиналам
-        const counts: Record<number, number> = {};
-        stock.forEach((s: { value: number }) => counts[s.value] = (counts[s.value] || 0) + 1);
+        const counts: any = {};
+        stock.forEach(s => counts[s.value] = (counts[s.value] || 0) + 1);
 
-        const usdRate = settings.usd_rate_promo;
-        
-        // Создаем товары только для тех номиналов, которые есть в наличии
-        const list = Object.entries(counts)
-            .map(([val, count]) => {
-                const amount = parseInt(val);
-                
-                // Ищем товар в таблице products по amount_uc
-                const product = products.find((p: any) => p.amount_uc === amount);
-                
-                if (!product) return null;
-                
-                // Используем цену из products таблицы, считаем по курсу promo
-                const basePrice = (product.price_usd * usdRate) + (product.markup_rub || 0);
-                const finalPrice = Math.ceil(basePrice * (1 + settings.fee_percent));
-                
-                return {
-                    id: amount,
-                    amount_uc: amount,
-                    price: finalPrice,
-                    image_url: product.image_url || '/1.png',
-                    stock_count: count
-                };
-            })
-            .filter(item => item !== null);
+        const { data: baseDenoms } = await supabase.from('base_denominations').select('*').order('amount_uc', { ascending: false });
+        const usdRate = settings.usd_rate_promo || settings.usd_rate || 90;
+        const calcUsdFromBase = (ucAmount: number) => {
+            if (!baseDenoms?.length) return (ucAmount / 60) * 1;
+            let totalUsd = 0, remaining = ucAmount;
+            for (const d of baseDenoms) {
+                if (remaining >= d.amount_uc) {
+                    const c = Math.floor(remaining / d.amount_uc);
+                    totalUsd += c * d.price_usd;
+                    remaining -= c * d.amount_uc;
+                }
+            }
+            if (remaining > 0) {
+                const m = baseDenoms.find((x: any) => x.amount_uc === 60);
+                if (m) totalUsd += (remaining / 60) * m.price_usd;
+            }
+            return totalUsd;
+        };
+        const list = Object.keys(counts).map(val => {
+            const amount = parseInt(val);
+            const baseUsd = calcUsdFromBase(amount);
+            const finalPrice = Math.ceil((baseUsd * usdRate + 100) * (1 + settings.fee_percent));
             
+            return {
+                id: amount,
+                amount_uc: amount,
+                price: finalPrice,
+                image_url: '/1.png', 
+                stock_count: counts[val]
+            };
+        });
         res.json(list);
     } catch (e) { res.status(500).json({ error: 'Internal Error' }); }
 });
@@ -637,7 +594,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_код_batch' && state.uc !== undefined) {
-                    const codes: string[] = text.trim().split(/\s+/).filter(s => s.length > 0);
+                    const codes = text.trim().split(/\s+/).filter(s => s.length > 0);
                     if (codes.length > 0) {
                         const rows = codes.map(code => ({ value: state.uc!, code, is_used: false }));
                         const { error } = await supabase.from('codes_stock').insert(rows);
@@ -651,80 +608,8 @@ app.post('/api/bot-webhook', async (req, res) => {
                 if (state.action === 'await_price_usd' && state.uc !== undefined) {
                     const price = parseFloat(text.trim());
                     if (!isNaN(price) && price >= 0) {
-                        const group = productGroups[state.uc];
-                        if (group) {
-                            // Обновить базовый
-                            await supabase
-                                .from('products')
-                                .update({ price_usd: price })
-                                .eq('amount_uc', state.uc);
-                        } else {
-                            // Если не базовый, обновить только этот
-                            const { error } = await supabase
-                                .from('products')
-                                .update({ price_usd: price })
-                                .eq('amount_uc', state.uc);
-                            await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
-                        }
-
-                        // Автоматическое обновление комбо номиналов
-                        const baseAmounts = [60, 325, 660, 1800, 3850, 8100];
-                        if (baseAmounts.includes(state.uc)) {
-                            const { data: prices } = await supabase.from('products').select('amount_uc, price_usd');
-                            const priceMap = prices?.reduce((acc, p) => { acc[p.amount_uc] = p.price_usd; return acc; }, {} as Record<number, number>) || {};
-
-                            const updates = [];
-                            if (state.uc === 60) {
-                                updates.push({ amount_uc: 120, price_usd: price * 2 });
-                                updates.push({ amount_uc: 180, price_usd: price * 3 });
-                                updates.push({ amount_uc: 240, price_usd: price * 4 });
-                                updates.push({ amount_uc: 385, price_usd: (priceMap[325] || 0) + price });
-                                updates.push({ amount_uc: 445, price_usd: (priceMap[325] || 0) + price * 2 });
-                                updates.push({ amount_uc: 720, price_usd: (priceMap[660] || 0) + price });
-                                updates.push({ amount_uc: 1920, price_usd: (priceMap[1800] || 0) + price * 2 });
-                            }
-                            if (state.uc === 325) {
-                                updates.push({ amount_uc: 385, price_usd: price + (priceMap[60] || 0) });
-                                updates.push({ amount_uc: 445, price_usd: price + (priceMap[60] || 0) * 2 });
-                                updates.push({ amount_uc: 985, price_usd: (priceMap[660] || 0) + price });
-                                updates.push({ amount_uc: 2125, price_usd: (priceMap[1800] || 0) + price });
-                            }
-                            if (state.uc === 660) {
-                                updates.push({ amount_uc: 720, price_usd: price + (priceMap[60] || 0) });
-                                updates.push({ amount_uc: 985, price_usd: price + (priceMap[325] || 0) });
-                                updates.push({ amount_uc: 1320, price_usd: price * 2 });
-                                updates.push({ amount_uc: 2460, price_usd: (priceMap[1800] || 0) + price });
-                                updates.push({ amount_uc: 4510, price_usd: (priceMap[3850] || 0) + price });
-                            }
-                            if (state.uc === 1800) {
-                                updates.push({ amount_uc: 1920, price_usd: price + (priceMap[60] || 0) * 2 });
-                                updates.push({ amount_uc: 2125, price_usd: price + (priceMap[325] || 0) });
-                                updates.push({ amount_uc: 2460, price_usd: price + (priceMap[660] || 0) });
-                                updates.push({ amount_uc: 5650, price_usd: (priceMap[3850] || 0) + price });
-                                updates.push({ amount_uc: 9900, price_usd: (priceMap[8100] || 0) + price });
-                            }
-                            if (state.uc === 3850) {
-                                updates.push({ amount_uc: 4510, price_usd: price + (priceMap[660] || 0) });
-                                updates.push({ amount_uc: 5650, price_usd: price + (priceMap[1800] || 0) });
-                                updates.push({ amount_uc: 11950, price_usd: price + (priceMap[8100] || 0) });
-                            }
-                            if (state.uc === 8100) {
-                                updates.push({ amount_uc: 9900, price_usd: price + (priceMap[1800] || 0) });
-                                updates.push({ amount_uc: 16200, price_usd: price * 2 });
-                                updates.push({ amount_uc: 24300, price_usd: price * 3 });
-                                updates.push({ amount_uc: 32400, price_usd: price * 4 });
-                                updates.push({ amount_uc: 40500, price_usd: price * 5 });
-                                updates.push({ amount_uc: 81000, price_usd: price * 10 });
-                                updates.push({ amount_uc: 11950, price_usd: (priceMap[3850] || 0) + price });
-                            }
-
-                            for (const update of updates) {
-                                await supabase.from('products').update({ price_usd: update.price_usd }).eq('amount_uc', update.amount_uc);
-                            }
-                            await sendTg(chatId, `✅ Обновлена цена ${state.uc} UC и комбо номиналы`, getAdminMainKeyboard());
-                        } else {
-                            await sendTg(chatId, `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
-                        }
+                        const { error } = await supabase.from('base_denominations').update({ price_usd: price }).eq('amount_uc', state.uc);
+                        await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
                     return;
                 }
@@ -762,14 +647,12 @@ app.post('/api/bot-webhook', async (req, res) => {
                 }
                 if (state.action.startsWith('await_prime_')) {
                     const key = state.action.replace('await_', '');
-                    const val = parseFloat(text.trim());
+                    const val = key.includes('markup') ? parseInt(text.trim()) : parseInt(text.trim());
                     if (!isNaN(val)) {
                         const fieldMap: Record<string, string> = {
                             'prime_markup': 'prime_markup_rub', 'prime_plus_markup': 'prime_plus_markup_rub',
-                            'prime_1m': 'prime_1m_usd', 'prime_3m': 'prime_3m_usd', 'prime_6m': 'prime_6m_usd', 'prime_12m': 'prime_12m_usd',
-                            'prime_plus_1m': 'prime_plus_1m_usd', 'prime_plus_3m': 'prime_plus_3m_usd', 'prime_plus_6m': 'prime_plus_6m_usd', 'prime_plus_12m': 'prime_plus_12m_usd',
-                            'prime_markup_1m': 'prime_markup_1m_rub', 'prime_markup_3m': 'prime_markup_3m_rub', 'prime_markup_6m': 'prime_markup_6m_rub', 'prime_markup_12m': 'prime_markup_12m_rub',
-                            'prime_plus_markup_1m': 'prime_plus_markup_1m_rub', 'prime_plus_markup_3m': 'prime_plus_markup_3m_rub', 'prime_plus_markup_6m': 'prime_plus_markup_6m_rub', 'prime_plus_markup_12m': 'prime_plus_markup_12m_rub'
+                            'prime_1m': 'prime_1m_rub', 'prime_3m': 'prime_3m_rub', 'prime_6m': 'prime_6m_rub', 'prime_12m': 'prime_12m_rub',
+                            'prime_plus_1m': 'prime_plus_1m_rub', 'prime_plus_3m': 'prime_plus_3m_rub', 'prime_plus_6m': 'prime_plus_6m_rub', 'prime_plus_12m': 'prime_plus_12m_rub'
                         };
                         const field = fieldMap[key];
                         if (field) {
@@ -859,7 +742,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                 const uc = parseInt(parts[1]);
                 const price = parseFloat(parts[2]);
                 if (!isNaN(uc) && !isNaN(price) && price >= 0) {
-                    const { error } = await supabase.from('products').update({ price_usd: price }).eq('amount_uc', uc);
+                    const { error } = await supabase.from('base_denominations').update({ price_usd: price }).eq('amount_uc', uc);
                     await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${uc} UC = ${price}$`);
                 }
             }
@@ -900,53 +783,53 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, `🎮 Маржа Prime Plus: ${markup}₽`);
             }
 
-            // Команды для цен периодов Prime (в USD)
+            // Команды для цен периодов Prime
             if (text.toLowerCase().startsWith('prime_1m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_1m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 1 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_1m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 1 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_3m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_3m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 3 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_3m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 3 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_6m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_6m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 6 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_6m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 6 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_12m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_12m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 12 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_12m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 12 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_1m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_1m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 1 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_1m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 1 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_3m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_3m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 3 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_3m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 3 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_6m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_6m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_6m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_12m ')) {
-                const price = parseFloat(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_12m_usd: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 12 мес: ${price}$`);
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_12m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 12 мес: ${price}₽`);
             }
 
             if (text === '/admin_manage') {
@@ -1252,25 +1135,19 @@ if (message && message.photo && message.caption) {
 
         if (data === 'adm_prime') {
             const { data: s } = await supabase.from('settings').select('*').single();
-            let text = `🎮 <b>Prime</b> (цена в USD + наценка по месяцам)\n\n`;
+            let text = `🎮 <b>Prime</b> (базовая цена по месяцам + наценка)\n\n`;
             if (s) {
                 text += `Prime: маржа +${s.prime_markup_rub ?? 0}₽\n`;
-                text += `1м: ${s.prime_1m_usd ?? '-'}$ (+${s.prime_markup_1m_rub ?? 0}₽) | 3м: ${s.prime_3m_usd ?? '-'}$ (+${s.prime_markup_3m_rub ?? 0}₽)\n`;
-                text += `6м: ${s.prime_6m_usd ?? '-'}$ (+${s.prime_markup_6m_rub ?? 0}₽) | 12м: ${s.prime_12m_usd ?? '-'}$ (+${s.prime_markup_12m_rub ?? 0}₽)\n\n`;
+                text += `1м: ${s.prime_1m_rub ?? '-'} | 3м: ${s.prime_3m_rub ?? '-'} | 6м: ${s.prime_6m_rub ?? '-'} | 12м: ${s.prime_12m_rub ?? '-'}\n\n`;
                 text += `Prime Plus: маржа +${s.prime_plus_markup_rub ?? 0}₽\n`;
-                text += `1м: ${s.prime_plus_1m_usd ?? '-'}$ (+${s.prime_plus_markup_1m_rub ?? 0}₽) | 3м: ${s.prime_plus_3m_usd ?? '-'}$ (+${s.prime_plus_markup_3m_rub ?? 0}₽)\n`;
-                text += `6м: ${s.prime_plus_6m_usd ?? '-'}$ (+${s.prime_plus_markup_6m_rub ?? 0}₽) | 12м: ${s.prime_plus_12m_usd ?? '-'}$ (+${s.prime_plus_markup_12m_rub ?? 0}₽)`;
+                text += `1м: ${s.prime_plus_1m_rub ?? '-'} | 3м: ${s.prime_plus_3m_rub ?? '-'} | 6м: ${s.prime_plus_6m_rub ?? '-'} | 12м: ${s.prime_plus_12m_rub ?? '-'}`;
             }
             const keyboard = {
                 inline_keyboard: [
-                    [{ text: "1м цена $", callback_data: "adm_prime_1m" }, { text: "1м наценка ₽", callback_data: "adm_prime_markup_1m" }],
-                    [{ text: "3м цена $", callback_data: "adm_prime_3m" }, { text: "3м наценка ₽", callback_data: "adm_prime_markup_3m" }],
-                    [{ text: "6м цена $", callback_data: "adm_prime_6m" }, { text: "6м наценка ₽", callback_data: "adm_prime_markup_6m" }],
-                    [{ text: "12м цена $", callback_data: "adm_prime_12m" }, { text: "12м наценка ₽", callback_data: "adm_prime_markup_12m" }],
-                    [{ text: "Plus 1м цена $", callback_data: "adm_prime_plus_1m" }, { text: "Plus 1м наценка ₽", callback_data: "adm_prime_plus_markup_1m" }],
-                    [{ text: "Plus 3м цена $", callback_data: "adm_prime_plus_3m" }, { text: "Plus 3м наценка ₽", callback_data: "adm_prime_plus_markup_3m" }],
-                    [{ text: "Plus 6м цена $", callback_data: "adm_prime_plus_6m" }, { text: "Plus 6м наценка ₽", callback_data: "adm_prime_plus_markup_6m" }],
-                    [{ text: "Plus 12м цена $", callback_data: "adm_prime_plus_12m" }, { text: "Plus 12м наценка ₽", callback_data: "adm_prime_plus_markup_12m" }],
+                    [{ text: "Prime маржа ₽", callback_data: "adm_prime_markup" }],
+                    [{ text: "1м", callback_data: "adm_prime_1m" }, { text: "3м", callback_data: "adm_prime_3m" }, { text: "6м", callback_data: "adm_prime_6m" }, { text: "12м", callback_data: "adm_prime_12m" }],
+                    [{ text: "Plus маржа ₽", callback_data: "adm_prime_plus_markup" }],
+                    [{ text: "Plus 1м", callback_data: "adm_prime_plus_1m" }, { text: "Plus 3м", callback_data: "adm_prime_plus_3m" }, { text: "Plus 6м", callback_data: "adm_prime_plus_6m" }, { text: "Plus 12м", callback_data: "adm_prime_plus_12m" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
@@ -1282,19 +1159,8 @@ if (message && message.photo && message.caption) {
             if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
                 const actionKey = key === 'markup' ? 'prime_markup' : `prime_${key}`;
                 adminStates.set(currentChatId, { action: `await_${actionKey}` });
-                const label = key === 'markup' 
-                    ? 'Prime маржа ₽' 
-                    : `Prime ${key} $`;
+                const label = { markup: 'Prime маржа ₽', '1m': 'Prime 1 мес ₽', '3m': 'Prime 3 мес ₽', '6m': 'Prime 6 мес ₽', '12m': 'Prime 12 мес ₽' }[key];
                 await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
-            }
-        }
-
-        // Обработка наценок по месяцам для Prime
-        if (data.startsWith('adm_prime_markup_')) {
-            const month = data.replace('adm_prime_markup_', '');
-            if (['1m', '3m', '6m', '12m'].includes(month)) {
-                adminStates.set(currentChatId, { action: `await_prime_markup_${month}` });
-                await editTg(currentChatId, msgId, `🎮 Введите наценку Prime ${month} в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_prime" }]] });
             }
         }
 
@@ -1303,29 +1169,18 @@ if (message && message.photo && message.caption) {
             if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
                 const actionKey = key === 'markup' ? 'prime_plus_markup' : `prime_plus_${key}`;
                 adminStates.set(currentChatId, { action: `await_${actionKey}` });
-                const label = key === 'markup' 
-                    ? 'Prime Plus маржа ₽' 
-                    : `Plus ${key} $`;
+                const label = { markup: 'Prime Plus маржа ₽', '1m': 'Plus 1 мес ₽', '3m': 'Plus 3 мес ₽', '6m': 'Plus 6 мес ₽', '12m': 'Plus 12 мес ₽' }[key];
                 await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
             }
         }
 
-        // Обработка наценок по месяцам для Prime Plus
-        if (data.startsWith('adm_prime_plus_markup_')) {
-            const month = data.replace('adm_prime_plus_markup_', '');
-            if (['1m', '3m', '6m', '12m'].includes(month)) {
-                adminStates.set(currentChatId, { action: `await_prime_plus_markup_${month}` });
-                await editTg(currentChatId, msgId, `🎮 Введите наценку Prime Plus ${month} в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_prime" }]] });
-            }
-        }
-
         if (data === 'adm_price_usd') {
-            const { data: products } = await supabase.from('products').select('*').order('amount_uc');
-            let text = `💵 <b>Цены товаров (в USD)</b>\n\nВыберите номинал:`;
+            const { data: denoms } = await supabase.from('base_denominations').select('*').order('amount_uc');
+            let text = `💵 <b>Базовые номиналы UC</b>\n\nСуммы для промокодов складываются из этих номиналов (60, 325, 660, 1800, 3850, 8100):`;
             const rows: any[] = [];
-            if (products?.length) {
-                products.forEach((p: any) => {
-                    rows.push([{ text: `${p.amount_uc} UC = ${p.price_usd}$`, callback_data: `adm_price_${p.amount_uc}` }]);
+            if (denoms?.length) {
+                denoms.forEach((d: any) => {
+                    rows.push([{ text: `${d.amount_uc} UC = ${d.price_usd}$`, callback_data: `adm_price_${d.amount_uc}` }]);
                 });
             }
             rows.push([{ text: "🔙 Назад", callback_data: "adm_back" }]);

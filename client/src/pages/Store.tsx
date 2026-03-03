@@ -57,12 +57,34 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           fetch(`${VITE_API_NGROK}/api/products?store=store`, { headers })
         ]);
 
+        if (!primeRes.ok) throw new Error(`Prime API error: ${primeRes.status} ${await primeRes.text()}`);
+        if (!ucRes.ok) throw new Error(`UC API error: ${ucRes.status} ${await ucRes.text()}`);
+
         const primePrices = await primeRes.json();
         const ucData = await ucRes.json();
         
-        // Исправленное форматирование Prime с учетом комиссии во всех периодах
+        if (!Array.isArray(primePrices)) throw new Error('Prime prices is not an array');
+        if (!Array.isArray(ucData)) throw new Error('UC data is not an array');
+        
         const formattedPrimePacks = primePrices.map((item: any) => {
-          const updatedPeriods = (item.periods || []).map((p: any) => ({
+          // Копируем периоды из базы
+          let basePeriods = [...(item.periods || [])];
+          
+          // Проверяем наличие 9 месяцев, если нет — добавляем (цена за 1 мес * 9)
+          const hasNine = basePeriods.some(p => Number(p.months) === 9);
+          if (!hasNine && basePeriods.length > 0) {
+            const oneMonthPrice = basePeriods.find(p => Number(p.months) === 1)?.price || basePeriods[0].price;
+            basePeriods.push({
+              months: 9,
+              price: Number(oneMonthPrice) * 9
+            });
+          }
+          
+          // Сортируем по возрастанию месяцев
+          basePeriods.sort((a, b) => Number(a.months) - Number(b.months));
+
+          // Применяем комиссию ко всем периодам
+          const updatedPeriods = basePeriods.map((p: any) => ({
             ...p,
             price: calculatePriceWithCommission(Number(p.price), paymentMethod)
           }));
@@ -80,14 +102,13 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
         const formattedUcPacks = ucData.map((p: any) => ({
           id: p.id,
           amount: p.amount_uc,
-          price: calculatePriceWithCommission(p.price || 0, paymentMethod),
+          price: calculatePriceWithCommission(Number(p.price || 0), paymentMethod),
           image: p.image_url,
           type: 'uc' as const
         }));
         
         setPacks([...formattedPrimePacks, ...formattedUcPacks]);
 
-        // Исправленная установка начальных периодов (берем уже рассчитанные цены с комиссией)
         const initialPeriods: { [key: string]: { months: number; price: number } } = {};
         formattedPrimePacks.forEach((item: any) => {
           if (item.periods && item.periods.length > 0) {
