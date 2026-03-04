@@ -198,17 +198,17 @@ app.get('/api/prime-prices', async (req, res) => {
         
         if (!settings) return res.status(500).json({ error: 'DB Data not found' });
 
-        const primeMarkup = Number(settings.prime_markup_rub) || 0;
-        const primePlusMarkup = Number(settings.prime_plus_markup_rub) || 0;
+        const usdRateStore = settings.usd_rate_store || settings.usd_rate || 90;
         const primeProducts = [
             {
                 id: 'prime',
                 title: 'Prime',
                 periods: [
-                    { months: 1, price: (Number(settings.prime_1m_rub) || 150) + primeMarkup },
-                    { months: 3, price: (Number(settings.prime_3m_rub) || 400) + primeMarkup },
-                    { months: 6, price: (Number(settings.prime_6m_rub) || 750) + primeMarkup },
-                    { months: 12, price: (Number(settings.prime_12m_rub) || 1400) + primeMarkup }
+                    { months: 1, price: Math.ceil((Number(settings.prime_1m_usd) || 5) * usdRateStore + (Number(settings.prime_1m_markup_rub) || 0)) },
+                    { months: 3, price: Math.ceil((Number(settings.prime_3m_usd) || 13.5) * usdRateStore + (Number(settings.prime_3m_markup_rub) || 0)) },
+                    { months: 6, price: Math.ceil((Number(settings.prime_6m_usd) || 25) * usdRateStore + (Number(settings.prime_6m_markup_rub) || 0)) },
+                    { months: 9, price: Math.ceil((Number(settings.prime_9m_usd) || 37.5) * usdRateStore + (Number(settings.prime_9m_markup_rub) || 0)) },
+                    { months: 12, price: Math.ceil((Number(settings.prime_12m_usd) || 47) * usdRateStore + (Number(settings.prime_12m_markup_rub) || 0)) }
                 ],
                 image_url: '/prime.jpg',
                 description: 'Prime Gaming подписка'
@@ -217,10 +217,11 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime_plus',
                 title: 'Prime Plus',
                 periods: [
-                    { months: 1, price: (Number(settings.prime_plus_1m_rub) || 250) + primePlusMarkup },
-                    { months: 3, price: (Number(settings.prime_plus_3m_rub) || 700) + primePlusMarkup },
-                    { months: 6, price: (Number(settings.prime_plus_6m_rub) || 1300) + primePlusMarkup },
-                    { months: 12, price: (Number(settings.prime_plus_12m_rub) || 2400) + primePlusMarkup }
+                    { months: 1, price: Math.ceil((Number(settings.prime_plus_1m_usd) || 8.33) * usdRateStore + (Number(settings.prime_plus_1m_markup_rub) || 0)) },
+                    { months: 3, price: Math.ceil((Number(settings.prime_plus_3m_usd) || 23.33) * usdRateStore + (Number(settings.prime_plus_3m_markup_rub) || 0)) },
+                    { months: 6, price: Math.ceil((Number(settings.prime_plus_6m_usd) || 43.33) * usdRateStore + (Number(settings.prime_plus_6m_markup_rub) || 0)) },
+                    { months: 9, price: Math.ceil((Number(settings.prime_plus_9m_usd) || 62.5) * usdRateStore + (Number(settings.prime_plus_9m_markup_rub) || 0)) },
+                    { months: 12, price: Math.ceil((Number(settings.prime_plus_12m_usd) || 80) * usdRateStore + (Number(settings.prime_plus_12m_markup_rub) || 0)) }
                 ],
                 image_url: '/prime-plus.jpg',
                 description: 'Prime Gaming Plus подписка'
@@ -650,9 +651,16 @@ app.post('/api/bot-webhook', async (req, res) => {
                     const val = key.includes('markup') ? parseInt(text.trim()) : parseInt(text.trim());
                     if (!isNaN(val)) {
                         const fieldMap: Record<string, string> = {
-                            'prime_markup': 'prime_markup_rub', 'prime_plus_markup': 'prime_plus_markup_rub',
-                            'prime_1m': 'prime_1m_rub', 'prime_3m': 'prime_3m_rub', 'prime_6m': 'prime_6m_rub', 'prime_12m': 'prime_12m_rub',
-                            'prime_plus_1m': 'prime_plus_1m_rub', 'prime_plus_3m': 'prime_plus_3m_rub', 'prime_plus_6m': 'prime_plus_6m_rub', 'prime_plus_12m': 'prime_plus_12m_rub'
+                            'prime_1m_usd': 'prime_1m_usd', 'prime_1m_markup': 'prime_1m_markup_rub',
+                            'prime_3m_usd': 'prime_3m_usd', 'prime_3m_markup': 'prime_3m_markup_rub',
+                            'prime_6m_usd': 'prime_6m_usd', 'prime_6m_markup': 'prime_6m_markup_rub',
+                            'prime_9m_usd': 'prime_9m_usd', 'prime_9m_markup': 'prime_9m_markup_rub',
+                            'prime_12m_usd': 'prime_12m_usd', 'prime_12m_markup': 'prime_12m_markup_rub',
+                            'prime_plus_1m_usd': 'prime_plus_1m_usd', 'prime_plus_1m_markup': 'prime_plus_1m_markup_rub',
+                            'prime_plus_3m_usd': 'prime_plus_3m_usd', 'prime_plus_3m_markup': 'prime_plus_3m_markup_rub',
+                            'prime_plus_6m_usd': 'prime_plus_6m_usd', 'prime_plus_6m_markup': 'prime_plus_6m_markup_rub',
+                            'prime_plus_9m_usd': 'prime_plus_9m_usd', 'prime_plus_9m_markup': 'prime_plus_9m_markup_rub',
+                            'prime_plus_12m_usd': 'prime_plus_12m_usd', 'prime_plus_12m_markup': 'prime_plus_12m_markup_rub'
                         };
                         const field = fieldMap[key];
                         if (field) {
@@ -771,65 +779,125 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, `🎫 Маржа билетов: ${markup}₽`);
             }
 
-            if (text.toLowerCase().startsWith('prime_markup ')) {
-                const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_markup_rub: markup }).eq('id', 1);
-                await sendTg(chatId, `🎮 Маржа Prime: ${markup}₽`);
-            }
-
-            if (text.toLowerCase().startsWith('prime_plus_markup ')) {
-                const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_markup_rub: markup }).eq('id', 1);
-                await sendTg(chatId, `🎮 Маржа Prime Plus: ${markup}₽`);
-            }
-
             // Команды для цен периодов Prime
-            if (text.toLowerCase().startsWith('prime_1m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_1m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 1 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_1m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_1m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 1 мес USD: ${price}$`);
             }
 
-            if (text.toLowerCase().startsWith('prime_3m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_3m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 3 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_1m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_1m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 1 мес маржа: ${markup}₽`);
             }
 
-            if (text.toLowerCase().startsWith('prime_6m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_6m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 6 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_3m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_3m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 3 мес USD: ${price}$`);
             }
 
-            if (text.toLowerCase().startsWith('prime_12m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_12m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime 12 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_3m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_3m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 3 мес маржа: ${markup}₽`);
             }
 
-            if (text.toLowerCase().startsWith('prime_plus_1m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_1m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 1 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_6m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_6m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 6 мес USD: ${price}$`);
             }
 
-            if (text.toLowerCase().startsWith('prime_plus_3m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_3m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 3 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_6m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_6m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 6 мес маржа: ${markup}₽`);
             }
 
-            if (text.toLowerCase().startsWith('prime_plus_6m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_6m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_9m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_9m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 9 мес USD: ${price}$`);
             }
 
-            if (text.toLowerCase().startsWith('prime_plus_12m ')) {
-                const price = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_12m_rub: price }).eq('id', 1);
-                await sendTg(chatId, `🎮 Prime Plus 12 мес: ${price}₽`);
+            if (text.toLowerCase().startsWith('prime_9m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_9m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 9 мес маржа: ${markup}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_12m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_12m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 12 мес USD: ${price}$`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_12m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_12m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 12 мес маржа: ${markup}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_1m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_1m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 1 мес USD: ${price}$`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_1m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_1m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 1 мес маржа: ${markup}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_3m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_3m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 3 мес USD: ${price}$`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_3m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_3m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 3 мес маржа: ${markup}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_6m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_6m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 6 мес USD: ${price}$`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_6m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_6m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 6 мес маржа: ${markup}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_9m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_9m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 9 мес USD: ${price}$`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_9m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_9m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 9 мес маржа: ${markup}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_12m_usd ')) {
+                const price = parseFloat(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_12m_usd: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 12 мес USD: ${price}$`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_12m_markup ')) {
+                const markup = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_12m_markup_rub: markup }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 12 мес маржа: ${markup}₽`);
             }
 
             if (text === '/admin_manage') {
@@ -1135,19 +1203,31 @@ if (message && message.photo && message.caption) {
 
         if (data === 'adm_prime') {
             const { data: s } = await supabase.from('settings').select('*').single();
-            let text = `🎮 <b>Prime</b> (базовая цена по месяцам + наценка)\n\n`;
+            let text = `🎮 <b>Prime</b> (базовая цена USD + маржа ₽)\n\n`;
             if (s) {
-                text += `Prime: маржа +${s.prime_markup_rub ?? 0}₽\n`;
-                text += `1м: ${s.prime_1m_rub ?? '-'} | 3м: ${s.prime_3m_rub ?? '-'} | 6м: ${s.prime_6m_rub ?? '-'} | 12м: ${s.prime_12m_rub ?? '-'}\n\n`;
-                text += `Prime Plus: маржа +${s.prime_plus_markup_rub ?? 0}₽\n`;
-                text += `1м: ${s.prime_plus_1m_rub ?? '-'} | 3м: ${s.prime_plus_3m_rub ?? '-'} | 6м: ${s.prime_plus_6m_rub ?? '-'} | 12м: ${s.prime_plus_12m_rub ?? '-'}`;
+                text += `1м: ${s.prime_1m_usd ?? '-'} USD + ${s.prime_1m_markup_rub ?? 0}₽\n`;
+                text += `3м: ${s.prime_3m_usd ?? '-'} USD + ${s.prime_3m_markup_rub ?? 0}₽\n`;
+                text += `6м: ${s.prime_6m_usd ?? '-'} USD + ${s.prime_6m_markup_rub ?? 0}₽\n`;
+                text += `9м: ${s.prime_9m_usd ?? '-'} USD + ${s.prime_9m_markup_rub ?? 0}₽\n`;
+                text += `12м: ${s.prime_12m_usd ?? '-'} USD + ${s.prime_12m_markup_rub ?? 0}₽\n\n`;
+                text += `1м: ${s.prime_plus_1m_usd ?? '-'} USD + ${s.prime_plus_1m_markup_rub ?? 0}₽\n`;
+                text += `3м: ${s.prime_plus_3m_usd ?? '-'} USD + ${s.prime_plus_3m_markup_rub ?? 0}₽\n`;
+                text += `6м: ${s.prime_plus_6m_usd ?? '-'} USD + ${s.prime_plus_6m_markup_rub ?? 0}₽\n`;
+                text += `9м: ${s.prime_plus_9m_usd ?? '-'} USD + ${s.prime_plus_9m_markup_rub ?? 0}₽\n`;
+                text += `12м: ${s.prime_plus_12m_usd ?? '-'} USD + ${s.prime_plus_12m_markup_rub ?? 0}₽`;
             }
             const keyboard = {
                 inline_keyboard: [
-                    [{ text: "Prime маржа ₽", callback_data: "adm_prime_markup" }],
-                    [{ text: "1м", callback_data: "adm_prime_1m" }, { text: "3м", callback_data: "adm_prime_3m" }, { text: "6м", callback_data: "adm_prime_6m" }, { text: "12м", callback_data: "adm_prime_12m" }],
-                    [{ text: "Plus маржа ₽", callback_data: "adm_prime_plus_markup" }],
-                    [{ text: "Plus 1м", callback_data: "adm_prime_plus_1m" }, { text: "Plus 3м", callback_data: "adm_prime_plus_3m" }, { text: "Plus 6м", callback_data: "adm_prime_plus_6m" }, { text: "Plus 12м", callback_data: "adm_prime_plus_12m" }],
+                    [{ text: "1м USD", callback_data: "adm_prime_1m_usd" }, { text: "1м маржа ₽", callback_data: "adm_prime_1m_markup" }],
+                    [{ text: "3м USD", callback_data: "adm_prime_3m_usd" }, { text: "3м маржа ₽", callback_data: "adm_prime_3m_markup" }],
+                    [{ text: "6м USD", callback_data: "adm_prime_6m_usd" }, { text: "6м маржа ₽", callback_data: "adm_prime_6m_markup" }],
+                    [{ text: "9м USD", callback_data: "adm_prime_9m_usd" }, { text: "9м маржа ₽", callback_data: "adm_prime_9m_markup" }],
+                    [{ text: "12м USD", callback_data: "adm_prime_12m_usd" }, { text: "12м маржа ₽", callback_data: "adm_prime_12m_markup" }],
+                    [{ text: "Plus 1м USD", callback_data: "adm_prime_plus_1m_usd" }, { text: "Plus 1м маржа ₽", callback_data: "adm_prime_plus_1m_markup" }],
+                    [{ text: "Plus 3м USD", callback_data: "adm_prime_plus_3m_usd" }, { text: "Plus 3м маржа ₽", callback_data: "adm_prime_plus_3m_markup" }],
+                    [{ text: "Plus 6м USD", callback_data: "adm_prime_plus_6m_usd" }, { text: "Plus 6м маржа ₽", callback_data: "adm_prime_plus_6m_markup" }],
+                    [{ text: "Plus 9м USD", callback_data: "adm_prime_plus_9m_usd" }, { text: "Plus 9м маржа ₽", callback_data: "adm_prime_plus_9m_markup" }],
+                    [{ text: "Plus 12м USD", callback_data: "adm_prime_plus_12m_usd" }, { text: "Plus 12м маржа ₽", callback_data: "adm_prime_plus_12m_markup" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
@@ -1156,20 +1236,22 @@ if (message && message.photo && message.caption) {
 
         if (data.startsWith('adm_prime_') && !data.startsWith('adm_prime_plus_')) {
             const key = data.replace('adm_prime_', '');
-            if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
-                const actionKey = key === 'markup' ? 'prime_markup' : `prime_${key}`;
+            if (['1m_usd', '1m_markup', '3m_usd', '3m_markup', '6m_usd', '6m_markup', '9m_usd', '9m_markup', '12m_usd', '12m_markup'].includes(key)) {
+                const actionKey = `prime_${key}`;
                 adminStates.set(currentChatId, { action: `await_${actionKey}` });
-                const label = { markup: 'Prime маржа ₽', '1m': 'Prime 1 мес ₽', '3m': 'Prime 3 мес ₽', '6m': 'Prime 6 мес ₽', '12m': 'Prime 12 мес ₽' }[key];
+                const labelMap: Record<string, string> = { '1m_usd': 'Prime 1 мес USD', '1m_markup': 'Prime 1 мес маржа ₽', '3m_usd': 'Prime 3 мес USD', '3m_markup': 'Prime 3 мес маржа ₽', '6m_usd': 'Prime 6 мес USD', '6m_markup': 'Prime 6 мес маржа ₽', '9m_usd': 'Prime 9 мес USD', '9m_markup': 'Prime 9 мес маржа ₽', '12m_usd': 'Prime 12 мес USD', '12m_markup': 'Prime 12 мес маржа ₽' };
+                const label = labelMap[key];
                 await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
             }
         }
 
         if (data.startsWith('adm_prime_plus_')) {
             const key = data.replace('adm_prime_plus_', '');
-            if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
-                const actionKey = key === 'markup' ? 'prime_plus_markup' : `prime_plus_${key}`;
+            if (['1m_usd', '1m_markup', '3m_usd', '3m_markup', '6m_usd', '6m_markup', '9m_usd', '9m_markup', '12m_usd', '12m_markup'].includes(key)) {
+                const actionKey = `prime_plus_${key}`;
                 adminStates.set(currentChatId, { action: `await_${actionKey}` });
-                const label = { markup: 'Prime Plus маржа ₽', '1m': 'Plus 1 мес ₽', '3m': 'Plus 3 мес ₽', '6m': 'Plus 6 мес ₽', '12m': 'Plus 12 мес ₽' }[key];
+                const labelMap: Record<string, string> = { '1m_usd': 'Plus 1 мес USD', '1m_markup': 'Plus 1 мес маржа ₽', '3m_usd': 'Plus 3 мес USD', '3m_markup': 'Plus 3 мес маржа ₽', '6m_usd': 'Plus 6 мес USD', '6m_markup': 'Plus 6 мес маржа ₽', '9m_usd': 'Plus 9 мес USD', '9m_markup': 'Plus 9 мес маржа ₽', '12m_usd': 'Plus 12 мес USD', '12m_markup': 'Plus 12 мес маржа ₽' };
+                const label = labelMap[key];
                 await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
             }
         }
