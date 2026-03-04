@@ -70,6 +70,16 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           // Копируем периоды из базы
           let basePeriods = [...(item.periods || [])];
           
+          // Проверяем наличие 9 месяцев, если нет — добавляем (цена за 1 мес * 9)
+          const hasNine = basePeriods.some(p => Number(p.months) === 9);
+          if (!hasNine && basePeriods.length > 0) {
+            const oneMonthPrice = basePeriods.find(p => Number(p.months) === 1)?.price || basePeriods[0].price;
+            basePeriods.push({
+              months: 9,
+              price: Number(oneMonthPrice) * 9
+            });
+          }
+          
           // Сортируем по возрастанию месяцев
           basePeriods.sort((a, b) => Number(a.months) - Number(b.months));
 
