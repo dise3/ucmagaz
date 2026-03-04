@@ -256,9 +256,9 @@ app.get('/api/products', async (req, res) => {
             if (remaining > 0) {
                 const minDenom = baseDenominations.find((d: any) => d.amount_uc === 60);
                 if (minDenom) totalUsd += (remaining / 60) * minDenom.price_usd;
-                }
+            }
             const basePrice = (totalUsd * usdRate) + markupRub;
-            return Math.ceil(basePrice * (1 + feePercent));
+            return isPromo ? Math.ceil(basePrice) : Math.ceil(basePrice * (1 + feePercent));
         };
 
         const list = products.map(p => {
