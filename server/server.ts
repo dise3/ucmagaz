@@ -1136,7 +1136,6 @@ if (message && message.photo && message.caption) {
                 inline_keyboard: [
                     ucButtons.slice(0, 4),
                     ucButtons.slice(4, 8),
-                    [{ text: "➕ Разные номиналы (UC КОД UC КОД...)", callback_data: "adm_код" }],
                     [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
@@ -1152,18 +1151,12 @@ if (message && message.photo && message.caption) {
             }
         }
 
-        if (data === 'adm_код') {
-            adminStates.set(currentChatId, { action: 'await_код' });
-            await editTg(currentChatId, msgId, `📦 Введите коды (можно несколько номиналов):\n\n<b>Формат:</b> UC пробел КОД\n<code>325 ABC123 120 DEF456</code>`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
-        }
-
         if (data === 'adm_освободить') {
             const { error } = await supabase.from('codes_stock').update({ is_used: false, status: null }).eq('status', 'RESERVED');
             await answerCallback(callback_query.id, error ? "Ошибка" : "Освобождено");
             const text = `📦 <b>Коды</b>\n\n${error ? '❌ Ошибка' : '✅ RESERVED коды освобождены'}`;
             const keyboard = {
                 inline_keyboard: [
-                    [{ text: "➕ Добавить код", callback_data: "adm_код" }],
                     [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
