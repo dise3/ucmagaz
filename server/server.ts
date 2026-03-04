@@ -217,11 +217,11 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime_plus',
                 title: 'Prime Plus',
                 periods: [
-                    { months: 1, price: Math.ceil((Number(settings.prime_plus_1m_usd) || 8.33) * usdRateStore + (Number(settings.prime_plus_1m_markup_rub) || 0)) },
-                    { months: 3, price: Math.ceil((Number(settings.prime_plus_3m_usd) || 23.33) * usdRateStore + (Number(settings.prime_plus_3m_markup_rub) || 0)) },
-                    { months: 6, price: Math.ceil((Number(settings.prime_plus_6m_usd) || 43.33) * usdRateStore + (Number(settings.prime_plus_6m_markup_rub) || 0)) },
-                    { months: 9, price: Math.ceil((Number(settings.prime_plus_9m_usd) || 62.5) * usdRateStore + (Number(settings.prime_plus_9m_markup_rub) || 0)) },
-                    { months: 12, price: Math.ceil((Number(settings.prime_plus_12m_usd) || 80) * usdRateStore + (Number(settings.prime_plus_12m_markup_rub) || 0)) }
+                    { months: 1, price: Math.ceil((Number(settings.prime_plus_1m_usd) || 8.33) * usdRateStore + (Number(settings.prime_plus_markup_1m_rub) || 0)) },
+                    { months: 3, price: Math.ceil((Number(settings.prime_plus_3m_usd) || 23.33) * usdRateStore + (Number(settings.prime_plus_markup_3m_rub) || 0)) },
+                    { months: 6, price: Math.ceil((Number(settings.prime_plus_6m_usd) || 43.33) * usdRateStore + (Number(settings.prime_plus_markup_6m_rub) || 0)) },
+                    { months: 9, price: Math.ceil((Number(settings.prime_plus_9m_usd) || 62.5) * usdRateStore + (Number(settings.prime_plus_markup_9m_rub) || 0)) },
+                    { months: 12, price: Math.ceil((Number(settings.prime_plus_12m_usd) || 80) * usdRateStore + (Number(settings.prime_plus_markup_12m_rub) || 0)) }
                 ],
                 image_url: '/prime-plus.jpg',
                 description: 'Prime Gaming Plus подписка'
@@ -651,16 +651,16 @@ app.post('/api/bot-webhook', async (req, res) => {
                     const val = key.includes('markup') ? parseInt(text.trim()) : parseInt(text.trim());
                     if (!isNaN(val)) {
                         const fieldMap: Record<string, string> = {
-                            'prime_1m_usd': 'prime_1m_usd', 'prime_1m_markup': 'prime_1m_markup_rub',
-                            'prime_3m_usd': 'prime_3m_usd', 'prime_3m_markup': 'prime_3m_markup_rub',
-                            'prime_6m_usd': 'prime_6m_usd', 'prime_6m_markup': 'prime_6m_markup_rub',
-                            'prime_9m_usd': 'prime_9m_usd', 'prime_9m_markup': 'prime_9m_markup_rub',
-                            'prime_12m_usd': 'prime_12m_usd', 'prime_12m_markup': 'prime_12m_markup_rub',
-                            'prime_plus_1m_usd': 'prime_plus_1m_usd', 'prime_plus_1m_markup': 'prime_plus_1m_markup_rub',
-                            'prime_plus_3m_usd': 'prime_plus_3m_usd', 'prime_plus_3m_markup': 'prime_plus_3m_markup_rub',
-                            'prime_plus_6m_usd': 'prime_plus_6m_usd', 'prime_plus_6m_markup': 'prime_plus_6m_markup_rub',
-                            'prime_plus_9m_usd': 'prime_plus_9m_usd', 'prime_plus_9m_markup': 'prime_plus_9m_markup_rub',
-                            'prime_plus_12m_usd': 'prime_plus_12m_usd', 'prime_plus_12m_markup': 'prime_plus_12m_markup_rub'
+                            'prime_1m_usd': 'prime_1m_usd', 'prime_1m_markup': 'prime_markup_1m_rub',
+                            'prime_3m_usd': 'prime_3m_usd', 'prime_3m_markup': 'prime_markup_3m_rub',
+                            'prime_6m_usd': 'prime_6m_usd', 'prime_6m_markup': 'prime_markup_6m_rub',
+                            'prime_9m_usd': 'prime_9m_usd', 'prime_9m_markup': 'prime_markup_9m_rub',
+                            'prime_12m_usd': 'prime_12m_usd', 'prime_12m_markup': 'prime_markup_12m_rub',
+                            'prime_plus_1m_usd': 'prime_plus_1m_usd', 'prime_plus_1m_markup': 'prime_plus_markup_1m_rub',
+                            'prime_plus_3m_usd': 'prime_plus_3m_usd', 'prime_plus_3m_markup': 'prime_plus_markup_3m_rub',
+                            'prime_plus_6m_usd': 'prime_plus_6m_usd', 'prime_plus_6m_markup': 'prime_plus_markup_6m_rub',
+                            'prime_plus_9m_usd': 'prime_plus_9m_usd', 'prime_plus_9m_markup': 'prime_plus_markup_9m_rub',
+                            'prime_plus_12m_usd': 'prime_plus_12m_usd', 'prime_plus_12m_markup': 'prime_plus_markup_12m_rub'
                         };
                         const field = fieldMap[key];
                         if (field) {
@@ -788,7 +788,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_1m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_1m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_markup_1m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime 1 мес маржа: ${markup}₽`);
             }
 
@@ -800,7 +800,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_3m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_3m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_markup_3m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime 3 мес маржа: ${markup}₽`);
             }
 
@@ -812,7 +812,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_6m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_6m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_markup_6m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime 6 мес маржа: ${markup}₽`);
             }
 
@@ -824,7 +824,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_9m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_9m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_markup_9m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime 9 мес маржа: ${markup}₽`);
             }
 
@@ -836,7 +836,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_12m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_12m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_markup_12m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime 12 мес маржа: ${markup}₽`);
             }
 
@@ -848,7 +848,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_plus_1m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_1m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_plus_markup_1m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime Plus 1 мес маржа: ${markup}₽`);
             }
 
@@ -860,7 +860,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_plus_3m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_3m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_plus_markup_3m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime Plus 3 мес маржа: ${markup}₽`);
             }
 
@@ -872,7 +872,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_plus_6m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_6m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_plus_markup_6m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime Plus 6 мес маржа: ${markup}₽`);
             }
 
@@ -884,7 +884,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_plus_9m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_9m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_plus_markup_9m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime Plus 9 мес маржа: ${markup}₽`);
             }
 
@@ -896,7 +896,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
             if (text.toLowerCase().startsWith('prime_plus_12m_markup ')) {
                 const markup = parseInt(text.split(' ')[1]);
-                await supabase.from('settings').update({ prime_plus_12m_markup_rub: markup }).eq('id', 1);
+                await supabase.from('settings').update({ prime_plus_markup_12m_rub: markup }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime Plus 12 мес маржа: ${markup}₽`);
             }
 
@@ -1198,16 +1198,16 @@ if (message && message.photo && message.caption) {
             const { data: s } = await supabase.from('settings').select('*').single();
             let text = `🎮 <b>Prime</b> (базовая цена USD + маржа ₽)\n\n`;
             if (s) {
-                text += `1м: ${s.prime_1m_usd ?? '-'} USD + ${s.prime_1m_markup_rub ?? 0}₽\n`;
-                text += `3м: ${s.prime_3m_usd ?? '-'} USD + ${s.prime_3m_markup_rub ?? 0}₽\n`;
-                text += `6м: ${s.prime_6m_usd ?? '-'} USD + ${s.prime_6m_markup_rub ?? 0}₽\n`;
-                text += `9м: ${s.prime_9m_usd ?? '-'} USD + ${s.prime_9m_markup_rub ?? 0}₽\n`;
-                text += `12м: ${s.prime_12m_usd ?? '-'} USD + ${s.prime_12m_markup_rub ?? 0}₽\n\n`;
-                text += `1м: ${s.prime_plus_1m_usd ?? '-'} USD + ${s.prime_plus_1m_markup_rub ?? 0}₽\n`;
-                text += `3м: ${s.prime_plus_3m_usd ?? '-'} USD + ${s.prime_plus_3m_markup_rub ?? 0}₽\n`;
-                text += `6м: ${s.prime_plus_6m_usd ?? '-'} USD + ${s.prime_plus_6m_markup_rub ?? 0}₽\n`;
-                text += `9м: ${s.prime_plus_9m_usd ?? '-'} USD + ${s.prime_plus_9m_markup_rub ?? 0}₽\n`;
-                text += `12м: ${s.prime_plus_12m_usd ?? '-'} USD + ${s.prime_plus_12m_markup_rub ?? 0}₽`;
+                text += `1м: ${s.prime_1m_usd ?? '-'} USD + ${s.prime_markup_1m_rub ?? 0}₽\n`;
+                text += `3м: ${s.prime_3m_usd ?? '-'} USD + ${s.prime_markup_3m_rub ?? 0}₽\n`;
+                text += `6м: ${s.prime_6m_usd ?? '-'} USD + ${s.prime_markup_6m_rub ?? 0}₽\n`;
+                text += `9м: ${s.prime_9m_usd ?? '-'} USD + ${s.prime_markup_9m_rub ?? 0}₽\n`;
+                text += `12м: ${s.prime_12m_usd ?? '-'} USD + ${s.prime_markup_12m_rub ?? 0}₽\n\n`;
+                text += `1м: ${s.prime_plus_1m_usd ?? '-'} USD + ${s.prime_plus_markup_1m_rub ?? 0}₽\n`;
+                text += `3м: ${s.prime_plus_3m_usd ?? '-'} USD + ${s.prime_plus_markup_3m_rub ?? 0}₽\n`;
+                text += `6м: ${s.prime_plus_6m_usd ?? '-'} USD + ${s.prime_plus_markup_6m_rub ?? 0}₽\n`;
+                text += `9м: ${s.prime_plus_9m_usd ?? '-'} USD + ${s.prime_plus_markup_9m_rub ?? 0}₽\n`;
+                text += `12м: ${s.prime_plus_12m_usd ?? '-'} USD + ${s.prime_plus_markup_12m_rub ?? 0}₽`;
             }
             const keyboard = {
                 inline_keyboard: [
