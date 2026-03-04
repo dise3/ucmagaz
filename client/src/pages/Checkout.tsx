@@ -75,6 +75,7 @@ interface CheckoutProps {
   pack: { 
     amount?: number; 
     price?: number; 
+    basePrice?: number;
     image?: string; 
     is_code?: boolean; 
     is_skin?: boolean;

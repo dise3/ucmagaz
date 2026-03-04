@@ -5,10 +5,11 @@ interface Pack {
   id: number | string;
   amount?: number;
   price: number;
+  basePrice?: number; // Базовая цена без комиссии
   image: string;
   type?: 'prime' | 'prime_plus' | 'uc';
   title?: string;
-  periods?: { months: number; price: number }[]; // Для Prime товаров
+  periods?: { months: number; price: number; basePrice: number }[]; // Для Prime товаров
   months?: number; // Выбранный период
 }
 
@@ -86,13 +87,15 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           // Применяем комиссию ко всем периодам
           const updatedPeriods = basePeriods.map((p: any) => ({
             ...p,
-            price: calculatePriceWithCommission(Number(p.price), paymentMethod)
+            price: calculatePriceWithCommission(Number(p.price), paymentMethod),
+            basePrice: Number(p.price) // Базовая цена
           }));
 
           return {
             id: item.id,
             title: item.title,
             price: updatedPeriods.length > 0 ? updatedPeriods[0].price : 0,
+            basePrice: basePeriods.length > 0 ? basePeriods[0].price : 0, // Базовая цена без комиссии
             image: item.image_url,
             type: item.id as 'prime' | 'prime_plus',
             periods: updatedPeriods
@@ -114,7 +117,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           if (item.periods && item.periods.length > 0) {
             initialPeriods[item.id] = { 
               months: item.periods[0].months, 
-              price: item.periods[0].price 
+              price: item.periods[0].basePrice 
             };
           }
         });
@@ -129,10 +132,10 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
     fetchProducts();
   }, [VITE_API_NGROK, paymentMethod]);
 
-  const handlePeriodChange = (productId: string, months: number, periods: { months: number; price: number }[]) => {
+  const handlePeriodChange = (productId: string, months: number, periods: { months: number; price: number; basePrice: number }[]) => {
     const selected = periods.find(p => p.months === months);
     if (selected) {
-      setSelectedPeriods(prev => ({ ...prev, [productId]: { months: selected.months, price: Number(selected.price) } }));
+      setSelectedPeriods(prev => ({ ...prev, [productId]: { months: selected.months, price: Number(selected.basePrice) } }));
     }
     setActiveDropdown(null); // Закрываем список после выбора
   };
@@ -186,7 +189,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
               window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
               const selectedPack = {
                 ...pack,
-                price: Number(selectedPeriods[pack.id]?.price || pack.price || 0),
+                price: Number(selectedPeriods[pack.id]?.price || pack.basePrice || pack.price || 0),
                 months: selectedPeriods[pack.id]?.months
               };
               onSelect(selectedPack);
