@@ -143,25 +143,15 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       const base = (settings.ticket_price_usd * ((pack.amount || 0) / 100)) * settings.usd_rate + (settings.ticket_markup_rub || 0);
       return calculatePriceWithCommission(Math.ceil(base * (1 + settings.fee_percent)), paymentMethod);
     } else if (pack.type === 'prime') {
-      if (paymentMethod === 'sbp') {
-        return pack.price || 0; // Уже с SBP комиссией из Store
-      } else {
-        const basePrice = getBasePrice(pack.price || 0);
-        return calculatePriceWithCommission(basePrice, 'card');
-      }
+      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     } else if (pack.type === 'prime_plus') {
-      if (paymentMethod === 'sbp') {
-        return pack.price || 0; // Уже с SBP комиссией из Store
-      } else {
-        const basePrice = getBasePrice(pack.price || 0);
-        return calculatePriceWithCommission(basePrice, 'card');
-      }
+      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     } else if (pack.type === 'skin') {
       return pack.price || 0; // Скины без комиссии
     } else if (isMultiCode) {
       return items.reduce((sum: number, item: any) => sum + (getPriceForMethod(item.price, paymentMethod) * item.quantity), 0);
     } else {
-      // Для UC и Prime: pack.price уже включает SBP комиссию из Store
+      // Для UC
       return getPriceForMethod(pack.price || 0, paymentMethod);
     }
   };
