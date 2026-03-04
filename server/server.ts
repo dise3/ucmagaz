@@ -204,11 +204,11 @@ app.get('/api/prime-prices', async (req, res) => {
                 id: 'prime',
                 title: 'Prime',
                 periods: [
-                    { months: 1, price: Math.ceil((Number(settings.prime_1m_usd) || 5) * usdRateStore + (Number(settings.prime_1m_markup_rub) || 0)) },
-                    { months: 3, price: Math.ceil((Number(settings.prime_3m_usd) || 13.5) * usdRateStore + (Number(settings.prime_3m_markup_rub) || 0)) },
-                    { months: 6, price: Math.ceil((Number(settings.prime_6m_usd) || 25) * usdRateStore + (Number(settings.prime_6m_markup_rub) || 0)) },
-                    { months: 9, price: Math.ceil((Number(settings.prime_9m_usd) || 37.5) * usdRateStore + (Number(settings.prime_9m_markup_rub) || 0)) },
-                    { months: 12, price: Math.ceil((Number(settings.prime_12m_usd) || 47) * usdRateStore + (Number(settings.prime_12m_markup_rub) || 0)) }
+                    { months: 1, price: Math.ceil((Number(settings.prime_1m_usd) || 5) * usdRateStore + (Number(settings.prime_markup_1m_rub) || 0)) },
+                    { months: 3, price: Math.ceil((Number(settings.prime_3m_usd) || 13.5) * usdRateStore + (Number(settings.prime_markup_3m_rub) || 0)) },
+                    { months: 6, price: Math.ceil((Number(settings.prime_6m_usd) || 25) * usdRateStore + (Number(settings.prime_markup_6m_rub) || 0)) },
+                    { months: 9, price: Math.ceil((Number(settings.prime_9m_usd) || 37.5) * usdRateStore + (Number(settings.prime_markup_9m_rub) || 0)) },
+                    { months: 12, price: Math.ceil((Number(settings.prime_12m_usd) || 47) * usdRateStore + (Number(settings.prime_markup_12m_rub) || 0)) }
                 ],
                 image_url: '/prime.jpg',
                 description: 'Prime Gaming подписка'
