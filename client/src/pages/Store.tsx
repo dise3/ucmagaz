@@ -106,6 +106,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
           id: p.id,
           amount: p.amount_uc,
           price: calculatePriceWithCommission(Number(p.price || 0), paymentMethod),
+          basePrice: Number(p.price || 0), // Базовая цена с сервера
           image: p.image_url,
           type: 'uc' as const
         }));

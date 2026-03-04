@@ -152,7 +152,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       return items.reduce((sum: number, item: any) => sum + (getPriceForMethod(item.price, paymentMethod) * item.quantity), 0);
     } else {
       // Для UC
-      return getPriceForMethod(pack.price || 0, paymentMethod);
+      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     }
   };
 
