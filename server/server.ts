@@ -208,6 +208,7 @@ app.get('/api/prime-prices', async (req, res) => {
                     { months: 1, price: (Number(settings.prime_1m_rub) || 150) + primeMarkup },
                     { months: 3, price: (Number(settings.prime_3m_rub) || 400) + primeMarkup },
                     { months: 6, price: (Number(settings.prime_6m_rub) || 750) + primeMarkup },
+                    { months: 9, price: (Number(settings.prime_9m_rub) || ((Number(settings.prime_1m_rub) || 150) * 9)) + primeMarkup },
                     { months: 12, price: (Number(settings.prime_12m_rub) || 1400) + primeMarkup }
                 ],
                 image_url: '/prime.jpg',
@@ -220,6 +221,7 @@ app.get('/api/prime-prices', async (req, res) => {
                     { months: 1, price: (Number(settings.prime_plus_1m_rub) || 250) + primePlusMarkup },
                     { months: 3, price: (Number(settings.prime_plus_3m_rub) || 700) + primePlusMarkup },
                     { months: 6, price: (Number(settings.prime_plus_6m_rub) || 1300) + primePlusMarkup },
+                    { months: 9, price: (Number(settings.prime_plus_9m_rub) || ((Number(settings.prime_plus_1m_rub) || 250) * 9)) + primePlusMarkup },
                     { months: 12, price: (Number(settings.prime_plus_12m_rub) || 2400) + primePlusMarkup }
                 ],
                 image_url: '/prime-plus.jpg',
@@ -651,8 +653,8 @@ app.post('/api/bot-webhook', async (req, res) => {
                     if (!isNaN(val)) {
                         const fieldMap: Record<string, string> = {
                             'prime_markup': 'prime_markup_rub', 'prime_plus_markup': 'prime_plus_markup_rub',
-                            'prime_1m': 'prime_1m_rub', 'prime_3m': 'prime_3m_rub', 'prime_6m': 'prime_6m_rub', 'prime_12m': 'prime_12m_rub',
-                            'prime_plus_1m': 'prime_plus_1m_rub', 'prime_plus_3m': 'prime_plus_3m_rub', 'prime_plus_6m': 'prime_plus_6m_rub', 'prime_plus_12m': 'prime_plus_12m_rub'
+                            'prime_1m': 'prime_1m_rub', 'prime_3m': 'prime_3m_rub', 'prime_6m': 'prime_6m_rub', 'prime_9m': 'prime_9m_rub', 'prime_12m': 'prime_12m_rub',
+                            'prime_plus_1m': 'prime_plus_1m_rub', 'prime_plus_3m': 'prime_plus_3m_rub', 'prime_plus_6m': 'prime_plus_6m_rub', 'prime_plus_9m': 'prime_plus_9m_rub', 'prime_plus_12m': 'prime_plus_12m_rub'
                         };
                         const field = fieldMap[key];
                         if (field) {
@@ -802,6 +804,12 @@ app.post('/api/bot-webhook', async (req, res) => {
                 await sendTg(chatId, `🎮 Prime 6 мес: ${price}₽`);
             }
 
+            if (text.toLowerCase().startsWith('prime_9m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_9m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime 9 мес: ${price}₽`);
+            }
+
             if (text.toLowerCase().startsWith('prime_12m ')) {
                 const price = parseInt(text.split(' ')[1]);
                 await supabase.from('settings').update({ prime_12m_rub: price }).eq('id', 1);
@@ -824,6 +832,12 @@ app.post('/api/bot-webhook', async (req, res) => {
                 const price = parseInt(text.split(' ')[1]);
                 await supabase.from('settings').update({ prime_plus_6m_rub: price }).eq('id', 1);
                 await sendTg(chatId, `🎮 Prime Plus 6 мес: ${price}₽`);
+            }
+
+            if (text.toLowerCase().startsWith('prime_plus_9m ')) {
+                const price = parseInt(text.split(' ')[1]);
+                await supabase.from('settings').update({ prime_plus_9m_rub: price }).eq('id', 1);
+                await sendTg(chatId, `🎮 Prime Plus 9 мес: ${price}₽`);
             }
 
             if (text.toLowerCase().startsWith('prime_plus_12m ')) {
@@ -1138,16 +1152,18 @@ if (message && message.photo && message.caption) {
             let text = `🎮 <b>Prime</b> (базовая цена по месяцам + наценка)\n\n`;
             if (s) {
                 text += `Prime: маржа +${s.prime_markup_rub ?? 0}₽\n`;
-                text += `1м: ${s.prime_1m_rub ?? '-'} | 3м: ${s.prime_3m_rub ?? '-'} | 6м: ${s.prime_6m_rub ?? '-'} | 12м: ${s.prime_12m_rub ?? '-'}\n\n`;
+                text += `1м: ${s.prime_1m_rub ?? '-'} | 3м: ${s.prime_3m_rub ?? '-'} | 6м: ${s.prime_6m_rub ?? '-'} | 9м: ${s.prime_9m_rub ?? '-'} | 12м: ${s.prime_12m_rub ?? '-'}\n\n`;
                 text += `Prime Plus: маржа +${s.prime_plus_markup_rub ?? 0}₽\n`;
-                text += `1м: ${s.prime_plus_1m_rub ?? '-'} | 3м: ${s.prime_plus_3m_rub ?? '-'} | 6м: ${s.prime_plus_6m_rub ?? '-'} | 12м: ${s.prime_plus_12m_rub ?? '-'}`;
+                text += `1м: ${s.prime_plus_1m_rub ?? '-'} | 3м: ${s.prime_plus_3m_rub ?? '-'} | 6м: ${s.prime_plus_6m_rub ?? '-'} | 9м: ${s.prime_plus_9m_rub ?? '-'} | 12м: ${s.prime_plus_12m_rub ?? '-'}`;
             }
             const keyboard = {
                 inline_keyboard: [
                     [{ text: "Prime маржа ₽", callback_data: "adm_prime_markup" }],
-                    [{ text: "1м", callback_data: "adm_prime_1m" }, { text: "3м", callback_data: "adm_prime_3m" }, { text: "6м", callback_data: "adm_prime_6m" }, { text: "12м", callback_data: "adm_prime_12m" }],
+                    [{ text: "1м", callback_data: "adm_prime_1m" }, { text: "3м", callback_data: "adm_prime_3m" }, { text: "6м", callback_data: "adm_prime_6m" }],
+                    [{ text: "9м", callback_data: "adm_prime_9m" }, { text: "12м", callback_data: "adm_prime_12m" }],
                     [{ text: "Plus маржа ₽", callback_data: "adm_prime_plus_markup" }],
-                    [{ text: "Plus 1м", callback_data: "adm_prime_plus_1m" }, { text: "Plus 3м", callback_data: "adm_prime_plus_3m" }, { text: "Plus 6м", callback_data: "adm_prime_plus_6m" }, { text: "Plus 12м", callback_data: "adm_prime_plus_12m" }],
+                    [{ text: "Plus 1м", callback_data: "adm_prime_plus_1m" }, { text: "Plus 3м", callback_data: "adm_prime_plus_3m" }, { text: "Plus 6м", callback_data: "adm_prime_plus_6m" }],
+                    [{ text: "Plus 9м", callback_data: "adm_prime_plus_9m" }, { text: "Plus 12м", callback_data: "adm_prime_plus_12m" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
@@ -1156,20 +1172,21 @@ if (message && message.photo && message.caption) {
 
         if (data.startsWith('adm_prime_') && !data.startsWith('adm_prime_plus_')) {
             const key = data.replace('adm_prime_', '');
-            if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
+            if (['markup', '1m', '3m', '6m', '9m', '12m'].includes(key)) {
                 const actionKey = key === 'markup' ? 'prime_markup' : `prime_${key}`;
+                const labelMap: Record<string, string> = { markup: 'Prime маржа ₽', '1m': 'Prime 1 мес ₽', '3m': 'Prime 3 мес ₽', '6m': 'Prime 6 мес ₽', '9m': 'Prime 9 мес ₽', '12m': 'Prime 12 мес ₽' };
+                const label = labelMap[key] || 'Unknown';
                 adminStates.set(currentChatId, { action: `await_${actionKey}` });
-                const label = { markup: 'Prime маржа ₽', '1m': 'Prime 1 мес ₽', '3m': 'Prime 3 мес ₽', '6m': 'Prime 6 мес ₽', '12m': 'Prime 12 мес ₽' }[key];
                 await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
             }
         }
 
         if (data.startsWith('adm_prime_plus_')) {
             const key = data.replace('adm_prime_plus_', '');
-            if (['markup', '1m', '3m', '6m', '12m'].includes(key)) {
+            if (['markup', '1m', '3m', '6m', '9m', '12m'].includes(key)) {
                 const actionKey = key === 'markup' ? 'prime_plus_markup' : `prime_plus_${key}`;
-                adminStates.set(currentChatId, { action: `await_${actionKey}` });
-                const label = { markup: 'Prime Plus маржа ₽', '1m': 'Plus 1 мес ₽', '3m': 'Plus 3 мес ₽', '6m': 'Plus 6 мес ₽', '12m': 'Plus 12 мес ₽' }[key];
+                const labelMap: Record<string, string> = { markup: 'Prime Plus маржа ₽', '1m': 'Plus 1 мес ₽', '3m': 'Plus 3 мес ₽', '6m': 'Plus 6 мес ₽', '9m': 'Plus 9 мес ₽', '12m': 'Plus 12 мес ₽' };
+                const label = labelMap[key] || 'Unknown';
                 await editTg(currentChatId, msgId, `🎮 Введите ${label}:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
             }
         }
