@@ -171,7 +171,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
     setIsLoading(true);
     setError('');
     
-    if (!pack.is_code && !uid.trim() && pack.type !== 'pp' && pack.type !== 'tickets' && pack.type !== 'skin' && pack.type !== 'prime' && pack.type !== 'prime_plus') {
+    if (!pack.is_code && !uid.trim()) {
       setError('Пожалуйста, введите UID');
       setIsLoading(false);
       return;
@@ -207,7 +207,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
           'tuna-skip-browser-warning': 'true'
         },
         body: JSON.stringify({
-          uid: pack.type === 'skin' ? pack.title : pack.type === 'prime' || pack.type === 'prime_plus' ? 'PRIME_SUBSCRIPTION' : pack.is_code ? 'MANUAL_ORDER' : uid.trim(),
+          uid: pack.type === 'skin' ? pack.title : pack.is_code ? 'MANUAL_ORDER' : uid.trim(),
           amount: pack.type === 'skin' ? 1 : totalAmount,
           price: totalPrice,
           method_slug: paymentMethod,
@@ -350,7 +350,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
         )}
       </div>
 
-      {(!pack.is_code && pack.type !== 'pp' && pack.type !== 'tickets' && pack.type !== 'skin' && pack.type !== 'prime' && pack.type !== 'prime_plus') && (
+      {(!pack.is_code) && (
         <div className="space-y-3">
           <div className="flex justify-between items-end px-1">
             <label className="text-[12px] font-black text-white uppercase tracking-[0.2em]">PUBG UID</label>
@@ -422,7 +422,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       <button 
         onClick={() => { triggerHapticFeedback('heavy'); handlePayment(); }} 
         className="w-full bg-amber-500 hover:bg-amber-400 py-6 rounded-2xl font-black text-black text-xl active:scale-[0.98] transition-all uppercase tracking-tight relative overflow-hidden disabled:opacity-70"
-        disabled={(!pack.is_code && !uid.trim() && pack.type !== 'pp' && pack.type !== 'tickets' && pack.type !== 'skin' && pack.type !== 'prime' && pack.type !== 'prime_plus') || isLoading}
+        disabled={(!pack.is_code && !uid.trim()) || isLoading}
       >
         <div className="relative z-10 flex items-center justify-center gap-2">
           {isLoading ? <><Loader2 className="w-5 h-5 animate-spin" /><span>Обработка...</span></> : <span>Оплатить сейчас</span>}
