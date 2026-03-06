@@ -339,6 +339,8 @@ app.post('/api/create-payment', async (req, res) => {
             }])
             .select().single();
         
+        console.log('Order created:', { id: order.id, amount_uc: order.amount_uc, type: order.order_type });
+        
         if (error) throw error;
 
         let description = '';
@@ -400,12 +402,15 @@ app.post('/api/payment-callback', async (req, res) => {
         const orderId = order_id || metadata?.order_id;
 
         if (orderId) {
+            console.log('Updating order:', orderId);
             const { data: order } = await supabase
                 .from('orders')
                 .update({ status: 'paid', final_amount, commission_amount })
                 .eq('id', orderId)
                 .select()
                 .single();
+
+            console.log('Updated order status to paid for:', orderId);
 
             if (!order) return res.status(404).send('Not Found');
             res.status(200).send('OK');
