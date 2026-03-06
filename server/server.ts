@@ -565,7 +565,7 @@ app.post('/api/bot-webhook', async (req, res) => {
             if (state) {
                 adminStates.delete(chatId);
                 if (state.action === 'await_курс_store') {
-                    const rate = parseFloat(text.trim());
+                    const rate = parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(rate)) {
                         const { error } = await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
                         await sendTg(chatId, error ? `❌ Ошибка` : `📉 Курс Store: ${rate} руб/$`, getAdminMainKeyboard());
@@ -573,7 +573,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_курс_promo') {
-                    const rate = parseFloat(text.trim());
+                    const rate = parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(rate)) {
                         const { error } = await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
                         await sendTg(chatId, error ? `❌ Ошибка` : `📉 Курс Promo: ${rate} руб/$`, getAdminMainKeyboard());
@@ -613,11 +613,11 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_price_usd' && state.uc !== undefined) {
-                    const price = parseFloat(text.trim());
+                    const price = parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(price) && price >= 0) {
                         const { error } = await supabase.from('base_denominations').update({ price_usd: price }).eq('amount_uc', state.uc);
                         await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
-                    } else await sendTg(chatId, '❌ Введите число');
+                    } else await sendTg(chatId, '❌ Введите число >= 0');
                     return;
                 }
                 if (state.action === 'await_pp_markup') {
@@ -629,7 +629,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_pp_usd') {
-                    const price = parseFloat(text.trim());
+                    const price = parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(price)) {
                         await supabase.from('settings').update({ pp_price_usd: price }).eq('id', 1);
                         await sendTg(chatId, `👑 ПП (10000): ${price}$`, getAdminMainKeyboard());
@@ -637,7 +637,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_ticket_usd') {
-                    const price = parseFloat(text.trim());
+                    const price = parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(price)) {
                         await supabase.from('settings').update({ ticket_price_usd: price }).eq('id', 1);
                         await sendTg(chatId, `🎫 Билеты (100): ${price}$`, getAdminMainKeyboard());
@@ -654,7 +654,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                 }
                 if (state.action.startsWith('await_prime_')) {
                     const key = state.action.replace('await_', '');
-                    const val = key.includes('markup') ? parseInt(text.trim()) : parseInt(text.trim());
+                    const val = key.includes('markup') ? parseInt(text.trim()) : parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(val)) {
                         const fieldMap: Record<string, string> = {
                             'prime_1m_usd': 'prime_1m_usd', 'prime_1m_markup': 'prime_markup_1m_rub',
