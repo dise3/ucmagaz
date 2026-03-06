@@ -83,6 +83,7 @@ interface CheckoutProps {
     items?: Array<{ id: number; amount: number; price: number; quantity: number }>;
     type?: 'pp' | 'tickets' | 'skin' | 'prime' | 'prime_plus';
     title?: string;
+    months?: number;
   };
   onBack: () => void;
 }
@@ -207,8 +208,8 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
           'tuna-skip-browser-warning': 'true'
         },
         body: JSON.stringify({
-          uid: pack.type === 'skin' ? pack.title : pack.is_code ? 'MANUAL_ORDER' : uid.trim(),
-          amount: pack.type === 'skin' ? 1 : totalAmount,
+          uid: pack.type === 'skin' ? pack.title : pack.type === 'prime' ? (uid.trim() || 'PRIME_SUBSCRIPTION') : pack.is_code ? 'MANUAL_ORDER' : uid.trim(),
+          amount: pack.type === 'skin' ? 1 : (pack.amount || pack.months || totalAmount),
           price: totalPrice,
           method_slug: paymentMethod,
           user_chat_id: user_chat_id,
