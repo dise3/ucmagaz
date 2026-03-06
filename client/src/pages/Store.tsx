@@ -196,6 +196,7 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
                 price: Number(selectedPeriods[pack.id]?.price || pack.basePrice || pack.price || 0),
                 months: selectedPeriods[pack.id]?.months
               };
+              console.log('selectedPack months:', selectedPack.months);
               onSelect(selectedPack);
             }} 
             className="relative bg-[#121212]/60 border border-white/10 rounded-[28px] p-3 flex flex-col items-center gap-3 active:scale-95 transition-all cursor-pointer group"
