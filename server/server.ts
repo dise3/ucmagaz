@@ -399,18 +399,18 @@ app.post('/api/payment-callback', async (req, res) => {
     try {
         console.log('Webhook received:', JSON.stringify(req.body, null, 2));
         const { order_id, metadata, final_amount, commission_amount } = req.body;
-        const orderId = order_id || metadata?.order_id;
+        const localOrderId = parseInt(metadata?.order_id);
 
-        if (orderId) {
-            console.log('Updating order:', orderId);
+        if (localOrderId) {
+            console.log('Updating order:', localOrderId);
             const { data: order } = await supabase
                 .from('orders')
                 .update({ status: 'paid', final_amount, commission_amount })
-                .eq('id', orderId)
+                .eq('id', localOrderId)
                 .select()
                 .single();
 
-            console.log('Updated order status to paid for:', orderId);
+            console.log('Updated order status to paid for:', localOrderId);
 
             if (!order) return res.status(404).send('Not Found');
             res.status(200).send('OK');
