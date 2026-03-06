@@ -89,6 +89,7 @@ interface CheckoutProps {
 }
 
 const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
+  console.log('Pack in Checkout:', pack);
   const [paymentMethod, setPaymentMethod] = useState<'sbp' | 'card'>('sbp');
   const [uid, setUid] = useState('');
   const [showHelp, setShowHelp] = useState(false);
@@ -209,7 +210,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
         },
         body: JSON.stringify({
           uid: pack.type === 'skin' ? pack.title : pack.type === 'prime' ? (uid.trim() || 'PRIME_SUBSCRIPTION') : pack.is_code ? 'MANUAL_ORDER' : uid.trim(),
-          amount: pack.type === 'skin' ? 1 : (pack.amount || pack.months || totalAmount),
+          amount: (() => { const amt = pack.type === 'skin' ? 1 : (pack.amount || pack.months || totalAmount); console.log('Sending amount:', amt); return amt; })(),
           price: totalPrice,
           method_slug: paymentMethod,
           user_chat_id: user_chat_id,
