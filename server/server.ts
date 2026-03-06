@@ -395,10 +395,10 @@ app.get('/api/check-status/:orderId', async (req, res) => {
 // 6. Callback от платежной системы
 app.post('/api/payment-callback', async (req, res) => {
     try {
-        const { status, metadata, final_amount, commission_amount } = req.body;
-        const orderId = metadata?.order_id;
+        const { order_id, metadata, final_amount, commission_amount } = req.body;
+        const orderId = order_id || metadata?.order_id;
 
-        if (orderId && (status === 'paid' || status === 'completed')) {
+        if (orderId) {
             const { data: order } = await supabase
                 .from('orders')
                 .update({ status: 'paid', final_amount, commission_amount })
