@@ -397,6 +397,7 @@ app.get('/api/check-status/:orderId', async (req, res) => {
 // 6. Callback от платежной системы
 app.post('/api/payment-callback', async (req, res) => {
     console.log('Request from IP:', req.ip, 'Body:', JSON.stringify(req.body, null, 2));
+    res.status(200).send('OK');
     try {
         console.log('Webhook received:', JSON.stringify(req.body, null, 2));
         const { order_id, metadata, final_amount, commission_amount } = req.body;
