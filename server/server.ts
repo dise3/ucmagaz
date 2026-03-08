@@ -362,14 +362,16 @@ app.post('/api/create-payment', async (req, res) => {
             method_slug: method_slug || 'sbp',
             amount: Number(price),
             description: description,
-            metadata: { order_id: order.id },
-            notification_url: `${BACKEND_URL}/api/payment-callback`
+            metadata: { 
+                order_id: order.id,
+                notification_url: `${BACKEND_URL}/api/payment-callback`
+    }
         };
 
         const response = await axios.post('https://codeepay.ru/initiate_payment', paymentData, {
             headers: { 'X-Api-Key': process.env.CODEEPAY_API_KEY }
         });
-
+        console.log('✅ Payment response from codeepay:', response.data);
         await supabase.from('orders').update({ payment_id: response.data.order_id }).eq('id', order.id);
         res.json({ url: response.data.url, order_id: order.id });
 
