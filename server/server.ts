@@ -417,7 +417,6 @@ app.post('/api/payment-callback', async (req, res) => {
             console.log('Updated order status to paid for:', localOrderId);
 
             if (!order) return res.status(404).send('Not Found');
-            res.status(200).send('OK');
 
             if (order.is_code_order && order.uid_player !== 'MANUAL_ORDER') {
                 const { data: codeEntry } = await supabase
@@ -483,8 +482,6 @@ app.post('/api/payment-callback', async (req, res) => {
                 await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
                 await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы вручную в ближайшее время на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
             }
-        } else {
-            res.status(200).send('OK');
         }
     } catch (e) {
         console.error('Callback error:', e);
