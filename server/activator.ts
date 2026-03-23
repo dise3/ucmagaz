@@ -83,7 +83,7 @@ async function ensureRussianLanguage(page: Page) {
             const russianOption = page.locator('text=/Русский|Russian/i').first();
             await russianOption.waitFor({ state: 'visible', timeout: 5000 });
             await russianOption.click();
-            await page.waitForTimeout(2000);
+            await page.waitForTimeout(2001);
             console.log('[✅] Язык принудительно переключён на русский');
         } else {
             console.log('[✅] Язык уже русский по переключателю');
