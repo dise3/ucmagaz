@@ -56,33 +56,82 @@ async function killEverythingOverContent(page: Page) {
     }).catch(() => {});
 }
 
+async function ensureRussianLanguage(page: Page) {
+    // Добавляем параметр lang=ru в URL, если его нет
+    const url = page.url();
+    if (!url.includes('lang=ru')) {
+        const newUrl = url + (url.includes('?') ? '&lang=ru' : '?lang=ru');
+        await page.goto(newUrl, { waitUntil: 'domcontentloaded' });
+        console.log('[🌐] Добавлен параметр lang=ru, перезагружено');
+    }
+
+    // Ждём появления русских слов (указываем несколько вариантов)
+    await page.waitForFunction(
+        () => {
+            const body = document.body.innerText;
+            return /Войти|Авторизация|Регистрация|Личный кабинет|Войти в аккаунт|другими способами/i.test(body);
+        },
+        { timeout: 15000 }
+    ).catch(() => console.log('[⚠️] Русский текст не обнаружен после lang=ru, пробую через переключатель...'));
+
+    // Если русский текст не появился, пробуем через переключатель языка в интерфейсе
+    const langSwitcher = page.locator('[class*="language"], [class*="locale"], .lang-switch, [data-testid="language-selector"]').first();
+    if (await langSwitcher.isVisible({ timeout: 5000 }).catch(() => false)) {
+        const currentLang = await langSwitcher.textContent();
+        if (!currentLang?.includes('RU') && !currentLang?.includes('Рус')) {
+            await langSwitcher.click();
+            const russianOption = page.locator('text=/Русский|Russian/i').first();
+            await russianOption.waitFor({ state: 'visible', timeout: 5000 });
+            await russianOption.click();
+            await page.waitForTimeout(2000);
+            console.log('[✅] Язык принудительно переключён на русский');
+        } else {
+            console.log('[✅] Язык уже русский по переключателю');
+        }
+    }
+}
+
 export async function activateSingleCode(account: { email: string, pass: string }, uid: string, code: string, headless: boolean = true): Promise<ActivationResult> {
     const safeEmail = account.email.replace(/[^a-zA-Z0-9]/g, '_');
     const userDataDir = path.resolve(process.cwd(), `sessions/${safeEmail}`);
-    if (!fs.existsSync(userDataDir)) fs.mkdirSync(userDataDir, { recursive: true });
+    
+    // Очищаем старую сессию для корректного определения языка
+    if (fs.existsSync(userDataDir)) {
+        fs.rmSync(userDataDir, { recursive: true, force: true });
+    }
+    
+    fs.mkdirSync(userDataDir, { recursive: true });
 
     const context = await chromium.launchPersistentContext(userDataDir, {
         headless: headless,
         viewport: { width: 1280, height: 720 },
         args: STEALTH_ARGS,
         userAgent: USER_AGENT,
-        locale: 'ru-RU'
+        locale: 'ru-RU',
+        timezoneId: 'Europe/Moscow',
+        extraHTTPHeaders: { 'Accept-Language': 'ru-RU' },
+        geolocation: { latitude: 55.7558, longitude: 37.6173 }
     });
 
     const page = context.pages()[0] || await context.newPage();
     let result: ActivationResult = 'ERROR';
 
+    // Диагностика настроек браузера
+    const locale = await page.evaluate(() => navigator.language);
+    const timezone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+    console.log(`[🔧] Браузер: locale=${locale}, timezone=${timezone}`);
+
     try {
         console.log(`[🌐] Загрузка Midasbuy...`);
         await page.goto('https://www.midasbuy.com/midasbuy/ru/redeem/pubgm', { waitUntil: 'domcontentloaded', timeout: 60000 });
-        
         await page.waitForTimeout(15000); 
-        await killEverythingOverContent(page);
+        await ensureRussianLanguage(page);
+        // await killEverythingOverContent(page);
         const acceptCookiesBtn = page.locator('div, button').filter({ hasText: /^Принять все$|^Accept all$/i }).first();
         if (await acceptCookiesBtn.isVisible().catch(() => false)) {
             console.log(`[🍪] Обнаружены куки, принимаю...`);
             await acceptCookiesBtn.click({ force: true });
-            await page.waitForTimeout(4000);
+            await page.waitForTimeout(2000);
         }
 
         const emailLabel = page.locator('p[class*="MobileNav_country"][title*="@"]').first();
@@ -94,13 +143,15 @@ export async function activateSingleCode(account: { email: string, pass: string 
             
             await loginBtn.waitFor({ state: 'visible', timeout: 10000 });
             await loginBtn.click({ force: true });
+
+
+            await page.waitForTimeout(15000);
             // Снимаем фокус с кнопки, чтобы она не оставалась в активном (синем) состоянии
             await loginBtn.evaluate((el) => {
                 (el as HTMLElement).blur();
             }).catch(() => {});
             await page.evaluate(() => document.body.focus()).catch(() => {});
             
-            await page.waitForTimeout(7000);
             
             let authFrame: Frame | null = null;
             for (let i = 0; i < 5; i++) {
@@ -111,7 +162,7 @@ export async function activateSingleCode(account: { email: string, pass: string 
                     }
                 }
                 if (authFrame) break;
-                await page.waitForTimeout(1000);
+                await page.waitForTimeout(3000);
             }
 
             let target: Page | Frame = authFrame || page;
@@ -153,36 +204,16 @@ export async function activateSingleCode(account: { email: string, pass: string 
                 
                 // Вариант 2: Класс .cancel-txt (английская версия: куки + первый вход)
                 if (!clicked) {
-                    const cancelTxt = authFrame.locator('.cancel-txt');
+                    const cancelTxt = page.locator('text="Other Ways Sign In/Up"')
                     if (await cancelTxt.count() > 0) {
-                        console.log('[🔍] Найден .cancel-txt (EN), кликаю по кликабельному родителю...');
-                        try {
-                            await cancelTxt.first().evaluate((el) => {
-                                const trigger = (target: HTMLElement) => {
-                                    target.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, view: window }));
-                                    target.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, view: window }));
-                                    target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window }));
-                                };
-                                let parent = el.parentElement;
-                                while (parent && parent !== document.body) {
-                                    if (parent.classList.contains('to-other-login')) {
-                                        trigger(parent);
-                                        return;
-                                    }
-                                    if (parent.classList.contains('btn-wrap') || parent.classList.contains('btn')) {
-                                        trigger(parent);
-                                        return;
-                                    }
-                                    parent = parent.parentElement;
-                                }
-                                trigger(el as HTMLElement);
-                            });
+                        console.log('[🔍] Найден Other Ways Sign In/Up (EN), кликаю по кликабельному родителю...');
+                        await cancelTxt.waitFor({ state: 'visible', timeout: 10000 });
+                        await cancelTxt.click({ force: true });
                             clicked = true;
-                            console.log('[✅] Клик по .cancel-txt выполнен');
-                        } catch (e) {
-                            console.log('[⚠️] Не удалось кликнуть .cancel-txt:', e);
-                        }
+                            console.log('[✅] Клик по cancelTxt выполнен');
                     }
+                } else {
+                    console.log('[ℹ️] Кнопка Other Ways Sign In/Up не найдена');
                 }
                 
                 // Вариант 2: Поиск по тексту и клик через JS с dispatchEvent
@@ -303,7 +334,7 @@ export async function activateSingleCode(account: { email: string, pass: string 
                     await continueBtn.first().click({ force: true });
                 }
             }
-            await page.waitForTimeout(1500);
+            await page.waitForTimeout(2000);
             
             const passwordInput = target.locator('input[type="password"]');
             const passwordVisible = await passwordInput.first().isVisible().catch(() => false);
@@ -320,20 +351,38 @@ export async function activateSingleCode(account: { email: string, pass: string 
                 console.log('[🔒] Пароль введен в скрытое поле (EN-форма)');
             }
             
+            await page.waitForTimeout(2000); // Ждем появления кнопки
+            
             const submitLoginBtn = target.locator('.comfirm-btn').filter({ hasText: /Вход|Log In/i });
-            if (await submitLoginBtn.count() > 0) {
+            console.log(`[🔍] Ищем кнопку входа...`);
+            await submitLoginBtn.waitFor({ state: 'visible', timeout: 10000 })
+            const btnCount = await submitLoginBtn.count();
+            console.log(`[🔍] Найдено кнопок входа: ${btnCount}`);
+            
+            if (btnCount > 0) {
+                console.log(`[🔘] Нажимаю кнопку входа...`);
                 try {
-                    await submitLoginBtn.first().evaluate((el) => (el as HTMLElement).click());
-                } catch {
                     await submitLoginBtn.first().click({ force: true });
+                } catch (e) {
+                    console.log('[⚠️] Не удалось кликнуть по кнопке входа обычным способом, пробую через JS...', e);
+                }
+            } else {
+                console.log('[⚠️] Кнопка входа не найдена, пробуем альтернативные селекторы...');
+                // Альтернативные селекторы
+                const altBtn = target.locator('button[type="submit"], .login-btn, [class*="submit"], [class*="login"]').filter({ hasText: /Вход|Log In|Sign In|Login/i }).first();
+                if (await altBtn.count() > 0) {
+                    await altBtn.click({ force: true });
+                    console.log('[✅] Альтернативная кнопка входа нажата');
+                } else {
+                    console.log('[❌] Кнопка входа не найдена вообще');
                 }
             }
+            
             await page.waitForTimeout(8000);
         }
         
         await page.waitForTimeout(3000);
 
-        await page.waitForTimeout(50000);
         console.log('Очистка');
         await page.waitForTimeout(3000);
         await page.evaluate(() => {

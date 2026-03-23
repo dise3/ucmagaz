@@ -64,7 +64,7 @@ async function run() {
     { email: account.email, pass: account.password },
     uid,
     code,
-    true // headless = false — показывать браузер
+    false // headless = false — показывать браузер
   );
 
   console.log(`\n📋 Результат: ${result}`);
