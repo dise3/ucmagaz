@@ -981,10 +981,10 @@ app.post('/api/bot-webhook', async (req, res) => {
 }
 
 // Обработка фото скинов
-if (message && message.photo && message.caption) {
+if (message && message.photo) {
     const currentChatId = message.chat.id.toString();
     if (ADMIN_CHAT_ID.includes(currentChatId)) {
-        const caption = message.caption.trim();
+        const caption = message.caption ? message.caption.trim() : '';
         
         // Обработка временного скина
         const state = adminStates.get(currentChatId);
@@ -1023,7 +1023,7 @@ if (message && message.photo && message.caption) {
         }
         
         // Обработка обычного скина
-        if (caption.toLowerCase().startsWith('скин ')) {
+        if (caption && caption.toLowerCase().startsWith('скин ')) {
             const parts = caption.split(' ');
             if (parts.length >= 3) {
                 const title = parts.slice(1, -1).join(' ');
