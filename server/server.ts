@@ -560,13 +560,13 @@ app.post('/api/bot-webhook', async (req, res) => {
             // Обработка ввода в режиме ожидания (кнопочная панель)
             const state = adminStates.get(chatId);
             if (state) {
-                adminStates.delete(chatId);
                 if (state.action === 'await_курс_store') {
                     const rate = parseFloat(text.trim().replace(',', '.'));
                     if (!isNaN(rate)) {
                         const { error } = await supabase.from('settings').update({ usd_rate_store: rate }).eq('id', 1);
                         await sendTg(chatId, error ? `❌ Ошибка` : `📉 Курс Store: ${rate} руб/$`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_курс_promo') {
@@ -575,6 +575,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         const { error } = await supabase.from('settings').update({ usd_rate_promo: rate }).eq('id', 1);
                         await sendTg(chatId, error ? `❌ Ошибка` : `📉 Курс Promo: ${rate} руб/$`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_маржа' && state.uc !== undefined) {
@@ -583,18 +584,27 @@ app.post('/api/bot-webhook', async (req, res) => {
                         const { error } = await supabase.from('products').update({ markup_rub: val }).eq('amount_uc', state.uc);
                         await sendTg(chatId, error ? `❌ Ошибка` : `✅ Маржа ${state.uc} UC = ${val}₽`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_код') {
-                    const codes = parseMultipleCodes(text.trim());
-                    if (codes.length > 0) {
-                        const rows = codes.map(c => ({ value: c.uc, code: c.code, is_used: false }));
-                        const { error } = await supabase.from('codes_stock').insert(rows);
-                        const msg = error ? `❌ Ошибка БД` : `✅ Добавлено кодов: ${codes.length}`;
+                    const lines = text.trim().split(/\s+/).filter((l: string) => l.length > 0);
+                    if (lines.length >= 2 && lines.length % 2 === 0) {
+                        let added = 0;
+                        for (let i = 0; i < lines.length; i += 2) {
+                            const uc = parseInt(lines[i]);
+                            const code = lines[i + 1];
+                            if (!isNaN(uc) && code) {
+                                const { error } = await supabase.from('codes').insert([{ amount_uc: uc, code }]);
+                                if (!error) added++;
+                            }
+                        }
+                        const msg = added > 0 ? `✅ Добавлено ${added} кодов` : '❌ Ошибка';
                         await sendTg(chatId, msg, getAdminMainKeyboard());
                     } else {
                         await sendTg(chatId, '❌ Формат: UC пробел КОД — можно несколько через пробел или с новой строки\n\nПример: <code>325 ABC123 120 DEF456</code>\nИли:\n<code>325 ABC123\n120 DEF456</code>', getAdminMainKeyboard());
                     }
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_код_batch' && state.uc !== undefined) {
@@ -607,6 +617,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     } else {
                         await sendTg(chatId, '❌ Введите хотя бы один код', getAdminMainKeyboard());
                     }
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_price_usd' && state.uc !== undefined) {
@@ -615,6 +626,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         const { error } = await supabase.from('base_denominations').update({ price_usd: price }).eq('amount_uc', state.uc);
                         await sendTg(chatId, error ? `❌ Ошибка` : `✅ ${state.uc} UC = ${price}$`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число >= 0');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_pp_markup') {
@@ -623,6 +635,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         await supabase.from('settings').update({ pp_markup_rub: markup }).eq('id', 1);
                         await sendTg(chatId, `👑 Маржа ПП: ${markup}₽`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_pp_usd') {
@@ -631,6 +644,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         await supabase.from('settings').update({ pp_price_usd: price }).eq('id', 1);
                         await sendTg(chatId, `👑 ПП (10000): ${price}$`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_ticket_usd') {
@@ -639,6 +653,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         await supabase.from('settings').update({ ticket_price_usd: price }).eq('id', 1);
                         await sendTg(chatId, `🎫 Билеты (100): ${price}$`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_ticket_markup') {
@@ -647,6 +662,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         await supabase.from('settings').update({ ticket_markup_rub: markup }).eq('id', 1);
                         await sendTg(chatId, `🎫 Маржа билетов: ${markup}₽`, getAdminMainKeyboard());
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action.startsWith('await_prime_')) {
@@ -671,6 +687,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                             await sendTg(chatId, `✅ Обновлено`, getAdminMainKeyboard());
                         }
                     } else await sendTg(chatId, '❌ Введите число');
+                    adminStates.delete(chatId);
                     return;
                 }
                 if (state.action === 'await_temp_skin_title') {
