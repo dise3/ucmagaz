@@ -38,7 +38,12 @@ const BACKEND_URL = process.env.BACKEND_URL;
 const automationTimers = new Map<number, NodeJS.Timeout>();
 
 // Состояния админов для кнопочного ввода (chatId -> { action, extra? })
-type AdminState = { action: string; uc?: number };
+type AdminState = { 
+    action: string; 
+    uc?: number;
+    title?: string;
+    price?: number;
+};
 const adminStates = new Map<string, AdminState>();
 
 // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ TELEGRAM ---
@@ -445,25 +450,16 @@ app.post('/api/payment-callback', async (req, res) => {
             if (order.amount_uc < 1800 && order.order_type === 'uc') {
                 const userInfo = await getUserInfo(order.user_chat_id);
                 const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
-                const adminMsg = `⏳ <b>ОПЛАЧЕНО #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: <b>${order.amount_uc} UC</b>\n💵 Руб: ${order.price_rub}\n\n🤖 <i>Авто-выдача через 2 минуты.</i>`;
-                const keyboard = {
-                    inline_keyboard: [[{ text: "✋ Взять на себя (Отменить бота)", callback_data: `hold_${order.id}` }]]
-                };
+                const adminMsg = `🤖 <b>АВТО-ВЫДАЧА #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: <b>${order.amount_uc} UC</b>\n💵 Руб: ${order.price_rub}\n\n🤖 <i>Бот выдает автоматически.</i>`;
 
-                await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
+                await sendTg(ADMIN_CHAT_ID, adminMsg);
                 await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 5-15 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
 
-                const timer = setTimeout(async () => {
-                    automationTimers.delete(order.id);
-                    await sendTg(ADMIN_CHAT_ID, `🤖 Запускаю авто-выдачу заказа #${order.id}...`);
-                    try { 
-                        await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id); 
-                    } catch (e) { 
-                        await sendTg(ADMIN_CHAT_ID, `❌ Ошибка бота в заказе #${order.id}`); 
-                    }
-                }, 2 * 60 * 1000); 
-                
-                automationTimers.set(order.id, timer);
+                try {
+                    await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id);
+                } catch (e) {
+                    await sendTg(ADMIN_CHAT_ID, `❌ Ошибка бота в заказе #${order.id}`);
+                }
             } else if (order.order_type === 'pp' || order.order_type === 'tickets' || order.order_type === 'skin' || order.order_type === 'prime' || order.order_type === 'prime_plus') {
                 const userInfo = await getUserInfo(order.user_chat_id);
                 const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
@@ -675,6 +671,26 @@ app.post('/api/bot-webhook', async (req, res) => {
                             await sendTg(chatId, `✅ Обновлено`, getAdminMainKeyboard());
                         }
                     } else await sendTg(chatId, '❌ Введите число');
+                    return;
+                }
+                if (state.action === 'await_temp_skin_title') {
+                    const title = text.trim();
+                    if (title.length > 0) {
+                        adminStates.set(chatId, { action: 'await_temp_skin_price', title });
+                        await sendTg(chatId, `⏰ <b>Добавление временного скина</b>\n\nШаг 2/2: Введите цену скина в рублях:`);
+                    } else {
+                        await sendTg(chatId, '❌ Название не может быть пустым. Введите название скина:');
+                    }
+                    return;
+                }
+                if (state.action === 'await_temp_skin_price') {
+                    const price = parseInt(text.trim());
+                    if (!isNaN(price) && price > 0) {
+                        adminStates.set(chatId, { action: 'await_temp_skin_photo', title: state.title, price });
+                        await sendTg(chatId, `⏰ <b>Временный скин</b>\n\nНазвание: ${state.title}\nЦена: ${price}₽\n\nТеперь отправьте фото скина:`, getAdminMainKeyboard());
+                    } else {
+                        await sendTg(chatId, '❌ Цена должна быть положительным числом. Введите цену скина в рублях:');
+                    }
                     return;
                 }
             }
@@ -952,6 +968,44 @@ if (message && message.photo && message.caption) {
     const currentChatId = message.chat.id.toString();
     if (ADMIN_CHAT_ID.includes(currentChatId)) {
         const caption = message.caption.trim();
+        
+        // Обработка временного скина
+        const state = adminStates.get(currentChatId);
+        if (state && state.action === 'await_temp_skin_photo') {
+            adminStates.delete(currentChatId);
+            try {
+                console.log(`[TEMP SKIN UPLOAD] Starting upload for '${state.title}' price ${state.price}`);
+                const fileId = message.photo[message.photo.length - 1].file_id;
+                const fileResponse = await axios.get(`https://api.telegram.org/bot${BOT_TOKEN}/getFile?file_id=${fileId}`);
+                const filePath = fileResponse.data.result.file_path;
+                const downloadUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${filePath}`;
+                const imageResponse = await axios.get(downloadUrl, { responseType: 'arraybuffer' });
+                const buffer = Buffer.from(imageResponse.data);
+                const fileName = `temp_skin_${Date.now()}.jpg`;
+                
+                const { error: uploadError } = await supabase.storage.from('skins').upload(fileName, buffer, { contentType: 'image/jpeg' });
+                if (uploadError) throw uploadError;
+                
+                const { data: urlData } = supabase.storage.from('skins').getPublicUrl(fileName);
+                
+                const { error: insertError } = await supabase.from('skins_products').insert([{
+                    title: state.title, 
+                    price_rub: state.price, 
+                    image_url: urlData.publicUrl,
+                    is_temporary: true
+                }]);
+                
+                if (insertError) throw insertError;
+                
+                await sendTg(currentChatId, `✅ Временный скин "${state.title}" добавлен!`, getAdminMainKeyboard());
+            } catch (e: any) {
+                console.error('[TEMP SKIN UPLOAD] Error:', e);
+                await sendTg(currentChatId, '❌ Ошибка при добавлении временного скина', getAdminMainKeyboard());
+            }
+            return;
+        }
+        
+        // Обработка обычного скина
         if (caption.toLowerCase().startsWith('скин ')) {
             const parts = caption.split(' ');
             if (parts.length >= 3) {
@@ -1135,10 +1189,26 @@ if (message && message.photo && message.caption) {
 
         if (data === 'adm_codes') {
             adminStates.delete(currentChatId);
+            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').order('value');
+            const grouped: Record<number, { normal: number; used: number }> = {};
+            stock?.forEach((item: any) => {
+                if (!grouped[item.value]) {
+                    grouped[item.value] = { normal: 0, used: 0 };
+                }
+                if (item.is_used) {
+                    grouped[item.value].used++;
+                } else {
+                    grouped[item.value].normal++;
+                }
+            });
+            const lines = Object.entries(grouped)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`)
+                .join('\n');
+            const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
             const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
             const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
             const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
-            const text = `📦 <b>Коды</b>\n\n<b>Выберите номинал</b> — затем вставьте коды (по одному в строке или через пробел):`;
             const keyboard = {
                 inline_keyboard: [
                     ucButtons.slice(0, 4),
@@ -1287,8 +1357,9 @@ if (message && message.photo && message.caption) {
         if (data === 'admin_manage') {
             const keyboard = {
                 inline_keyboard: [
-                    [{ text: "💎 UC", callback_data: "m_uc" }],
-                    [{ text: "🎭 Skins", callback_data: "m_skins" }],
+                    [{ text: "💎 Удалить UC", callback_data: "m_uc" }],
+                    [{ text: "🎭 Удалить Skins", callback_data: "m_skins" }],
+                    [{ text: "➕Добавить временный скин", callback_data: "m_temp_skin" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
@@ -1346,6 +1417,11 @@ if (message && message.photo && message.caption) {
             } else {
                 await answerCallback(callback_query.id, "Ошибка удаления");
             }
+        }
+
+        if (data === 'm_temp_skin') {
+            adminStates.set(currentChatId, { action: 'await_temp_skin_title' });
+            await editTg(currentChatId, msgId, `⏰ <b>Добавление временного скина</b>\n\nШаг 1/2: Введите название скина:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "admin_manage" }]] });
         }
 
         if (data.startsWith('hold_')) {
