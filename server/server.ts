@@ -704,7 +704,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                     const price = parseInt(text.trim());
                     if (!isNaN(price) && price > 0) {
                         adminStates.set(chatId, { action: 'await_temp_skin_photo', title: state.title, price });
-                        await sendTg(chatId, `⏰ <b>Временный скин</b>\n\nНазвание: ${state.title}\nЦена: ${price}₽\n\nТеперь отправьте фото скина:`, getAdminMainKeyboard());
+                        await sendTg(chatId, `⏰ <b>Временный скин</b>\n\nНазвание: ${state.title}\nЦена: ${price}₽\n\nТеперь отправьте фото скина:`);
                     } else {
                         await sendTg(chatId, '❌ Цена должна быть положительным числом. Введите цену скина в рублях:');
                     }
