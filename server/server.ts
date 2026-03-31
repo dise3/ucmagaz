@@ -471,12 +471,28 @@ app.post('/api/payment-callback', async (req, res) => {
                 const userMsg = order.order_type === 'skin' ? `🎭 <b>Ваш скин будет выдан вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : order.order_type === 'prime' || order.order_type === 'prime_plus' ? `🎮 <b>Ваша подписка ${item} будет активирована вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : `👑 <b>${order.amount_uc} ${item}</b> будут выданы вручную в ближайшее время.\n\nЕсли возникнут вопросы, пишите в поддержку.`;
                 await sendTg(order.user_chat_id, userMsg);
             } else {
+                // Крупные заказы 1800+ - автовыдача с задержкой 2 минуты и возможностью перехвата
                 const userInfo = await getUserInfo(order.user_chat_id);
                 const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
-                const adminMsg = `💰 <b>КРУПНЫЙ ЗАКАЗ #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: ${order.amount_uc} UC`;
-                const keyboard = { inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `done_${order.id}` }]] };
+                const adminMsg = `💰 <b>КРУПНЫЙ ЗАКАЗ #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: ${order.amount_uc} UC\n💵 Руб: ${order.price_rub}\n\n⏰ <i>Автовыдача через 2 минуты. Можете перехватить.</i>`;
+                
+                const keyboard = { inline_keyboard: [[{ text: "🛑 Перехватить (Отменить бота)", callback_data: `hold_${order.id}` }]] };
                 await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
-                await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы вручную в ближайшее время на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
+                await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 2-5 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
+
+                // Устанавливаем таймер на автовыдачу через 2 минуты (120000 мс)
+                const automationTimer = setTimeout(async () => {
+                    try {
+                        console.log(`[AUTO-FULFILL] Starting automated fulfillment for order ${order.id} (${order.amount_uc} UC)`);
+                        await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id);
+                        await sendTg(ADMIN_CHAT_ID, `✅ Автовыдача заказа #${order.id} (${order.amount_uc} UC) завершена`);
+                    } catch (e) {
+                        console.error(`[AUTO-FULFILL] Error in order ${order.id}:`, e);
+                        await sendTg(ADMIN_CHAT_ID, `❌ Ошибка автовыдачи заказа #${order.id}. Выдайте вручную!`);
+                    }
+                }, 120000); // 2 минуты
+
+                automationTimers.set(order.id, automationTimer);
             }
         }
     } catch (e) {
@@ -593,7 +609,7 @@ app.post('/api/bot-webhook', async (req, res) => {
                         let added = 0;
                         for (let i = 0; i < lines.length; i += 2) {
                             const uc = parseInt(lines[i]);
-                            const code = lines[i + 1];
+                            const code: string = lines[i + 1];
                             if (!isNaN(uc) && code) {
                                 const { error } = await supabase.from('codes').insert([{ amount_uc: uc, code }]);
                                 if (!error) added++;
