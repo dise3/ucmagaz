@@ -188,18 +188,18 @@ const calculateProfit = async (days: number) => {
     // Получаем настройки для расчета себестоимости
     const { data: settings } = await supabase
         .from('settings')
-        .select('usd_rate, pp_price_usd, ticket_price_usd, prime_price_usd')
+        .select('usd_rate, pp_price_usd, ticket_price_usd, prime_price_usd, prime_1m_usd, prime_3m_usd, prime_6m_usd, prime_12m_usd, prime_plus_1m_usd, prime_plus_3m_usd, prime_plus_6m_usd, prime_plus_12m_usd')
         .single();
     
-    const { data: baseDenominations } = await supabase
-        .from('base_denominations')
+    const { data: products } = await supabase
+        .from('products')
         .select('amount_uc, price_usd');
     
     let query = supabase
         .from('orders')
         .select('final_amount, commission_amount, order_type, amount_uc')
         .in('status', ['completed', 'paid'])
-        .in('order_type', ['uc', 'prime', 'pp', 'tickets'])
+        .in('order_type', ['uc', 'prime', 'pp', 'tickets', 'prime_plus'])
         .gte('created_at', startDate.toISOString());
     
     // Добавляем endDate только для одного дня
@@ -221,10 +221,10 @@ const calculateProfit = async (days: number) => {
             
             // Расчет реальной себестоимости
             if (order.order_type === 'uc' && order.amount_uc) {
-                // Для UC: ищем базовую цену в base_denominations
-                const basePrice = baseDenominations?.find(d => d.amount_uc === order.amount_uc);
-                if (basePrice) {
-                    baseCost = basePrice.price_usd * usdRate;
+                // Для UC: ищем базовую цену в products
+                const product = products?.find(p => p.amount_uc === order.amount_uc);
+                if (product) {
+                    baseCost = product.price_usd * usdRate;
                 }
             } else if (order.order_type === 'pp') {
                 // Для PP: берем базовую цену из настроек
@@ -233,8 +233,37 @@ const calculateProfit = async (days: number) => {
                 // Для билетов: берем базовую цену из настроек
                 baseCost = (settings.ticket_price_usd || 0) * usdRate;
             } else if (order.order_type === 'prime') {
-                // Для Prime: берем базовую цену из настроек
-                baseCost = (settings.prime_price_usd || 0) * usdRate;
+                // Для Prime: определяем период по цене и берем соответствующую базовую цену
+                const finalAmount = order.final_amount || 0;
+                let primeBasePrice = 0;
+                
+                if (finalAmount <= 200) {
+                    primeBasePrice = settings.prime_1m_usd || 0; // 1 месяц
+                } else if (finalAmount <= 600) {
+                    primeBasePrice = settings.prime_3m_usd || 0; // 3 месяца
+                } else if (finalAmount <= 1000) {
+                    primeBasePrice = settings.prime_6m_usd || 0; // 6 месяцев
+                } else {
+                    primeBasePrice = settings.prime_12m_usd || 0; // 12 месяцев
+                }
+                
+                baseCost = primeBasePrice * usdRate;
+            } else if (order.order_type === 'prime_plus') {
+                // Для Prime Plus: определяем период по цене и берем соответствующую базовую цену
+                const finalAmount = order.final_amount || 0;
+                let primePlusBasePrice = 0;
+                
+                if (finalAmount <= 400) {
+                    primePlusBasePrice = settings.prime_plus_1m_usd || 0; // 1 месяц
+                } else if (finalAmount <= 900) {
+                    primePlusBasePrice = settings.prime_plus_3m_usd || 0; // 3 месяца
+                } else if (finalAmount <= 1500) {
+                    primePlusBasePrice = settings.prime_plus_6m_usd || 0; // 6 месяцев
+                } else {
+                    primePlusBasePrice = settings.prime_plus_12m_usd || 0; // 12 месяцев
+                }
+                
+                baseCost = primePlusBasePrice * usdRate;
             }
             
             totalProfit += finalAmount - baseCost - commission;
