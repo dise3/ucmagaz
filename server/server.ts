@@ -172,13 +172,54 @@ const calculateProfit = async (days: number) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
     
+    // Получаем настройки для расчета себестоимости
+    const { data: settings } = await supabase
+        .from('settings')
+        .select('usd_rate, pp_price_usd, ticket_price_usd, prime_price_usd')
+        .single();
+    
+    const { data: baseDenominations } = await supabase
+        .from('base_denominations')
+        .select('amount_uc, price_usd');
+    
     const { data } = await supabase
         .from('orders')
-        .select('final_amount')
+        .select('final_amount, commission_amount, order_type, amount_uc')
         .in('status', ['completed', 'paid'])
+        .in('order_type', ['uc', 'prime', 'pp', 'tickets'])
         .gte('created_at', startDate.toISOString());
     
-    const totalProfit = data?.reduce((sum, order) => sum + (order.final_amount || 0), 0) || 0;
+    let totalProfit = 0;
+    
+    if (data && settings) {
+        const usdRate = settings.usd_rate || 80;
+        
+        for (const order of data) {
+            const finalAmount = order.final_amount || 0;
+            const commission = order.commission_amount || 0;
+            let baseCost = 0;
+            
+            // Расчет реальной себестоимости
+            if (order.order_type === 'uc' && order.amount_uc) {
+                // Для UC: ищем базовую цену в base_denominations
+                const basePrice = baseDenominations?.find(d => d.amount_uc === order.amount_uc);
+                if (basePrice) {
+                    baseCost = basePrice.price_usd * usdRate;
+                }
+            } else if (order.order_type === 'pp') {
+                // Для PP: берем базовую цену из настроек
+                baseCost = (settings.pp_price_usd || 0) * usdRate;
+            } else if (order.order_type === 'tickets') {
+                // Для билетов: берем базовую цену из настроек
+                baseCost = (settings.ticket_price_usd || 0) * usdRate;
+            } else if (order.order_type === 'prime') {
+                // Для Prime: берем базовую цену из настроек
+                baseCost = (settings.prime_price_usd || 0) * usdRate;
+            }
+            
+            totalProfit += finalAmount - baseCost - commission;
+        }
+    }
     
     return { totalProfit, ordersCount: data?.length || 0 };
 };
@@ -197,6 +238,26 @@ const getAdminMainKeyboard = () => ({
 // --- API РОУТЫ ---
 
 app.get('/', (req, res) => res.send('✅ Server is running'));
+
+// API эндпоинт для cron активации аккаунтов
+app.post('/api/activate-accounts', async (req, res) => {
+    try {
+        const { error } = await supabase
+            .from('midas_accounts')
+            .update({ is_active: true });
+        
+        if (error) {
+            console.error('❌ Ошибка активации аккаунтов (cron):', error);
+            return res.status(500).json({ error: error.message });
+        }
+        
+        console.log('✅ Все аккаунты Midasbuy активированы (cron)');
+        res.json({ success: true, message: 'Аккаунты активированы' });
+    } catch (err) {
+        console.error('❌ Ошибка активации аккаунтов (cron):', err);
+        res.status(500).json({ error: 'Внутренняя ошибка' });
+    }
+});
 
 // 5.5. ТЕСТ АКТИВАТОРА (ВРЕМЕННО)
 app.get('/api/test-activate', async (req, res) => {
