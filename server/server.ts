@@ -169,8 +169,21 @@ const answerCallback = async (queryId: string, text: string) => {
 };
 
 const calculateProfit = async (days: number) => {
-    const startDate = new Date();
-    startDate.setDate(startDate.getDate() - days);
+    let startDate: Date;
+    let endDate: Date | undefined;
+    
+    if (days === 1) {
+        // Для одного дня: с 00:00 до 23:59 сегодняшнего дня
+        startDate = new Date();
+        startDate.setHours(0, 0, 0, 0);
+        
+        endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
+    } else {
+        // Для недели/месяца: последние N дней от текущего момента
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - days);
+    }
     
     // Получаем настройки для расчета себестоимости
     const { data: settings } = await supabase
@@ -182,12 +195,19 @@ const calculateProfit = async (days: number) => {
         .from('base_denominations')
         .select('amount_uc, price_usd');
     
-    const { data } = await supabase
+    let query = supabase
         .from('orders')
         .select('final_amount, commission_amount, order_type, amount_uc')
         .in('status', ['completed', 'paid'])
         .in('order_type', ['uc', 'prime', 'pp', 'tickets'])
         .gte('created_at', startDate.toISOString());
+    
+    // Добавляем endDate только для одного дня
+    if (endDate) {
+        query = query.lte('created_at', endDate.toISOString());
+    }
+    
+    const { data } = await query;
     
     let totalProfit = 0;
     
