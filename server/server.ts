@@ -168,13 +168,29 @@ const answerCallback = async (queryId: string, text: string) => {
     } catch (e) {}
 };
 
+const calculateProfit = async (days: number) => {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    
+    const { data } = await supabase
+        .from('orders')
+        .select('final_amount')
+        .in('status', ['completed', 'paid'])
+        .gte('created_at', startDate.toISOString());
+    
+    const totalProfit = data?.reduce((sum, order) => sum + (order.final_amount || 0), 0) || 0;
+    
+    return { totalProfit, ordersCount: data?.length || 0 };
+};
+
 // Клавиатура главного меню админ-панели
 const getAdminMainKeyboard = () => ({
     inline_keyboard: [
         [{ text: "💰 Курсы", callback_data: "adm_rates" }, { text: "💎 UC/Маржа", callback_data: "adm_markup" }],
         [{ text: "📦 Коды", callback_data: "adm_codes" }, { text: "👑 ПП и билеты", callback_data: "adm_pp" }],
         [{ text: "🎮 Prime", callback_data: "adm_prime" }, { text: "💵 Базовые номиналы UC", callback_data: "adm_price_usd" }],
-        [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }]
+        [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }],
+        [{ text: "💵 Прибыль", callback_data: "adm_profit" }, { text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }]
     ]
 });
 
@@ -1498,6 +1514,45 @@ if (message && message.photo) {
             await sendTg(chatId, `✅ Ваш ручной заказ на ${ucAmount} UC выполнен! Приятной игры.`);
             await editTg(currentChatId, msgId, callback_query.message.text + `\n\n✅ <b>ГОТОВО (ВРУЧНУЮ)</b>`, { inline_keyboard: [] });
             await answerCallback(callback_query.id, "Уведомлено");
+        }
+
+        if (data === 'adm_profit') {
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "📅 За сегодня", callback_data: "profit_today" }],
+                    [{ text: "📆 За неделю", callback_data: "profit_week" }],
+                    [{ text: "📊 За месяц", callback_data: "profit_month" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            await editTg(currentChatId, msgId, "Выберите период для просмотра прибыли:", keyboard);
+        }
+
+        if (data === 'profit_today') {
+            const result = await calculateProfit(1);
+            const text = `💰 <b>Прибыль за сегодня</b>\n\n💸 Всего: ${result.totalProfit}₽\n📈 Заказов: ${result.ordersCount} шт.`;
+            await editTg(currentChatId, msgId, text, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_profit" }]] });
+        }
+
+        if (data === 'profit_week') {
+            const result = await calculateProfit(7);
+            const text = `💰 <b>Прибыль за неделю</b>\n\n💸 Всего: ${result.totalProfit}₽\n📈 Заказов: ${result.ordersCount} шт.`;
+            await editTg(currentChatId, msgId, text, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_profit" }]] });
+        }
+
+        if (data === 'profit_month') {
+            const result = await calculateProfit(30);
+            const text = `💰 <b>Прибыль за месяц</b>\n\n💸 Всего: ${result.totalProfit}₽\n📈 Заказов: ${result.ordersCount} шт.`;
+            await editTg(currentChatId, msgId, text, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_profit" }]] });
+        }
+
+        if (data === 'adm_activate_accounts') {
+            const { error } = await supabase
+                .from('midas_accounts')
+                .update({ is_active: true });
+            
+            const text = error ? `❌ Ошибка активации: ${error.message}` : `✅ Все аккаунты Midasbuy активированы!`;
+            await answerCallback(callback_query.id, text);
         }
     }
 });
