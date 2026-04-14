@@ -207,7 +207,7 @@ const calculateProfit = async (days: number) => {
     
     let query = supabase
         .from('orders')
-        .select('id, final_amount, commission_amount, order_type, amount_uc')
+        .select('id, final_amount, commission_amount, order_type, amount_uc, price_rub')
         .in('status', ['completed', 'paid', 'partial'])
         .in('order_type', ['uc', 'prime', 'pp', 'tickets', 'prime_plus'])
         .gte('created_at', startDate.toISOString());
@@ -221,7 +221,7 @@ const calculateProfit = async (days: number) => {
     
     console.log(`[DEBUG] calculateProfit: Found ${data?.length || 0} orders for period ${startDate.toISOString()} to ${endDate?.toISOString() || 'now'}`);
     if (data) {
-        console.log(`[DEBUG] Orders:`, data.map(o => ({ id: o.id || 'unknown', type: o.order_type, amount: o.final_amount, uc: o.amount_uc })));
+        console.log(`[DEBUG] Orders:`, data.map(o => ({ id: o.id || 'unknown', type: o.order_type, price: o.price_rub, final: o.final_amount, uc: o.amount_uc })));
     }
     
     let totalProfit = 0;
@@ -230,7 +230,7 @@ const calculateProfit = async (days: number) => {
         const usdRate = settings.usd_rate || 80;
         
         for (const order of data) {
-            const finalAmount = order.final_amount || 0;
+            const priceRub = order.price_rub || 0;
             const commission = order.commission_amount || 0;
             let baseCost = 0;
             
@@ -305,7 +305,7 @@ const calculateProfit = async (days: number) => {
                 baseCost = primePlusBasePrice * usdRate;
             }
             
-            totalProfit += finalAmount - baseCost - commission;
+            totalProfit += priceRub - baseCost - commission;
         }
     }
     
