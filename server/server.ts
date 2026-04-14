@@ -305,7 +305,9 @@ const calculateProfit = async (days: number) => {
                 baseCost = primePlusBasePrice * usdRate;
             }
             
-            totalProfit += priceRub - baseCost - commission;
+            const orderProfit = priceRub - baseCost - commission;
+            console.log(`[DEBUG] Order #${order.id}: price=${priceRub}, baseCost=${baseCost}, commission=${commission}, profit=${orderProfit}`);
+            totalProfit += orderProfit;
         }
     }
     
