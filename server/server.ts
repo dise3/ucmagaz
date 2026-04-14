@@ -183,6 +183,10 @@ const calculateProfit = async (days: number) => {
         // Для недели/месяца: последние N дней от текущего момента
         startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
+        startDate.setHours(0, 0, 0, 0);
+        
+        endDate = new Date();
+        endDate.setHours(23, 59, 59, 999);
     }
     
     // Получаем настройки для расчета себестоимости
@@ -202,7 +206,7 @@ const calculateProfit = async (days: number) => {
         .in('order_type', ['uc', 'prime', 'pp', 'tickets', 'prime_plus'])
         .gte('created_at', startDate.toISOString());
     
-    // Добавляем endDate только для одного дня
+    // Добавляем endDate если он установлен
     if (endDate) {
         query = query.lte('created_at', endDate.toISOString());
     }
@@ -233,34 +237,58 @@ const calculateProfit = async (days: number) => {
                 // Для билетов: берем базовую цену из настроек
                 baseCost = (settings.ticket_price_usd || 0) * usdRate;
             } else if (order.order_type === 'prime') {
-                // Для Prime: определяем период по цене и берем соответствующую базовую цену
-                const finalAmount = order.final_amount || 0;
+                // Для Prime: определяем период по количеству месяцев и берем соответствующую базовую цену
+                const amountUc = order.amount_uc || 0;
                 let primeBasePrice = 0;
                 
-                if (finalAmount <= 200) {
+                if (amountUc === 1) {
                     primeBasePrice = settings.prime_1m_usd || 0; // 1 месяц
-                } else if (finalAmount <= 600) {
+                } else if (amountUc === 3) {
                     primeBasePrice = settings.prime_3m_usd || 0; // 3 месяца
-                } else if (finalAmount <= 1000) {
+                } else if (amountUc === 6) {
                     primeBasePrice = settings.prime_6m_usd || 0; // 6 месяцев
-                } else {
+                } else if (amountUc === 12) {
                     primeBasePrice = settings.prime_12m_usd || 0; // 12 месяцев
+                } else {
+                    // Если количество месяцев не определено, используем final_amount как запасной вариант
+                    const finalAmount = order.final_amount || 0;
+                    if (finalAmount <= 200) {
+                        primeBasePrice = settings.prime_1m_usd || 0;
+                    } else if (finalAmount <= 600) {
+                        primeBasePrice = settings.prime_3m_usd || 0;
+                    } else if (finalAmount <= 1000) {
+                        primeBasePrice = settings.prime_6m_usd || 0;
+                    } else {
+                        primeBasePrice = settings.prime_12m_usd || 0;
+                    }
                 }
                 
                 baseCost = primeBasePrice * usdRate;
             } else if (order.order_type === 'prime_plus') {
-                // Для Prime Plus: определяем период по цене и берем соответствующую базовую цену
-                const finalAmount = order.final_amount || 0;
+                // Для Prime Plus: определяем период по количеству месяцев и берем соответствующую базовую цену
+                const amountUc = order.amount_uc || 0;
                 let primePlusBasePrice = 0;
                 
-                if (finalAmount <= 400) {
+                if (amountUc === 1) {
                     primePlusBasePrice = settings.prime_plus_1m_usd || 0; // 1 месяц
-                } else if (finalAmount <= 900) {
+                } else if (amountUc === 3) {
                     primePlusBasePrice = settings.prime_plus_3m_usd || 0; // 3 месяца
-                } else if (finalAmount <= 1500) {
+                } else if (amountUc === 6) {
                     primePlusBasePrice = settings.prime_plus_6m_usd || 0; // 6 месяцев
-                } else {
+                } else if (amountUc === 12) {
                     primePlusBasePrice = settings.prime_plus_12m_usd || 0; // 12 месяцев
+                } else {
+                    // Если количество месяцев не определено, используем final_amount как запасной вариант
+                    const finalAmount = order.final_amount || 0;
+                    if (finalAmount <= 400) {
+                        primePlusBasePrice = settings.prime_plus_1m_usd || 0;
+                    } else if (finalAmount <= 900) {
+                        primePlusBasePrice = settings.prime_plus_3m_usd || 0;
+                    } else if (finalAmount <= 1500) {
+                        primePlusBasePrice = settings.prime_plus_6m_usd || 0;
+                    } else {
+                        primePlusBasePrice = settings.prime_plus_12m_usd || 0;
+                    }
                 }
                 
                 baseCost = primePlusBasePrice * usdRate;
@@ -750,9 +778,9 @@ app.post('/api/bot-webhook', async (req, res) => {
                     return;
                 }
                 if (state.action === 'await_код_batch' && state.uc !== undefined) {
-                    const codes = text.trim().split(/\s+/).filter(s => s.length > 0);
+                    const codes = text.trim().split(/\s+/).filter((s: string) => s.length > 0);
                     if (codes.length > 0) {
-                        const rows = codes.map(code => ({ value: state.uc!, code, is_used: false }));
+                        const rows = codes.map((code: string) => ({ value: state.uc!, code, is_used: false }));
                         const { error } = await supabase.from('codes_stock').insert(rows);
                         const msg = error ? `❌ Ошибка БД` : `✅ Добавлено ${codes.length} кодов на ${state.uc} UC`;
                         await sendTg(chatId, msg, getAdminMainKeyboard());
