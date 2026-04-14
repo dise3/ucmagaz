@@ -228,6 +228,8 @@ const calculateProfit = async (days: number) => {
     
     if (data && settings) {
         const usdRate = settings.usd_rate || 80;
+        console.log(`[DEBUG] USD rate: ${usdRate}`);
+        console.log(`[DEBUG] Products:`, products);
         
         for (const order of data) {
             const priceRub = order.price_rub || 0;
