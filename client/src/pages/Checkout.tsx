@@ -117,8 +117,8 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
     }
   }, [pack.type, VITE_API_NGROK]);
 
-  const COMMISSION_SBP = 0.052;
-  const COMMISSION_CARD = 0.0745;
+  const COMMISSION_SBP = 0.0485;
+  const COMMISSION_CARD = 0.071;
 
   const calculatePriceWithCommission = (basePrice: number, method: 'sbp' | 'card'): number => {
     const commission = method === 'sbp' ? COMMISSION_SBP : COMMISSION_CARD;

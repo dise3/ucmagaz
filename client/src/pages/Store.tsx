@@ -24,11 +24,11 @@ const Store: React.FC<StoreProps> = ({ onBack, onSelect }) => {
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null); // Состояние для выплывающего списка
   const [selectedPeriods, setSelectedPeriods] = useState<{ [key: string]: { months: number; price: number } }>({});
-  const [paymentMethod, setPaymentMethod] = useState<'sbp' | 'card'>('sbp');
+  const paymentMethod: 'sbp' | 'card' = 'sbp';
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
 
-  const COMMISSION_SBP = 0.052;
-  const COMMISSION_CARD = 0.0745;
+  const COMMISSION_SBP = 0.0485;
+  const COMMISSION_CARD = 0.071;
 
   const calculatePriceWithCommission = (base: number, method: 'sbp' | 'card') => {
     if (method === 'sbp') return Math.ceil(base * (1 + COMMISSION_SBP));

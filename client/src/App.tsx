@@ -57,7 +57,7 @@ function App() {
                 <Prime onBack={handleBackToHome} onSelect={handlePackSelect} />
               )}
               {page === "skins" && (
-                <Skins onBack={handleBackToHome} onSelect={handlePackSelect} />
+                <Skins onBack={handleBackToHome} />
               )}
               {page === "checkout" && (
                 <Checkout pack={selectedPack} onBack={() => setPage(selectedPack?.is_code ? "promo" : "store")} />

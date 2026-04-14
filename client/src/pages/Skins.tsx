@@ -10,10 +10,9 @@ interface Skin {
 
 interface SkinsProps {
   onBack: () => void;
-  onSelect: (skin: any) => void;
 }
 
-const Skins: React.FC<SkinsProps> = ({ onBack, onSelect }) => {
+const Skins: React.FC<SkinsProps> = ({ onBack }) => {
   const [skins, setSkins] = useState<Skin[]>([]);
   const [loading, setLoading] = useState(true);
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
@@ -92,7 +91,12 @@ const Skins: React.FC<SkinsProps> = ({ onBack, onSelect }) => {
             key={skin.id} 
             onClick={() => {
               window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
-              onSelect({ ...skin, is_skin: true }); 
+              const tg = window.Telegram?.WebApp;
+              if (tg && tg.openTelegramLink) {
+                tg.openTelegramLink('https://t.me/KoT9lpa_MANAGER');
+              } else {
+                window.open('https://t.me/KoT9lpa_MANAGER', '_blank');
+              }
             }}
             className="relative bg-[#121212]/60 border border-white/10 rounded-[28px] p-3 flex flex-col items-center gap-3 active:scale-95 transition-all cursor-pointer group overflow-hidden"
           >
