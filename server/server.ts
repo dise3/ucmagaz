@@ -240,8 +240,11 @@ const calculateProfit = async (days: number) => {
             if (order.order_type === 'uc' && order.amount_uc) {
                 // Для UC: ищем базовую цену в products
                 const product = products?.find(p => p.amount_uc === order.amount_uc);
+                console.log(`[DEBUG] Order #${order.id}: Looking for UC=${order.amount_uc}, found product:`, product);
                 if (product) {
                     baseCost = product.price_usd * usdRate;
+                } else {
+                    console.log(`[DEBUG] Order #${order.id}: No exact product found for UC=${order.amount_uc}`);
                 }
             } else if (order.order_type === 'pp') {
                 // Для PP: берем базовую цену из настроек
