@@ -173,14 +173,17 @@ const calculateProfit = async (days: number) => {
     let endDate: Date | undefined;
     
     if (days === 1) {
-        // Для одного дня: с 00:00 до 23:59 сегодняшнего дня
+        // Для одного дня: с 00:00 до 23:59 сегодняшнего дня по МСК
+        const now = new Date();
+        const mskOffset = 3; // МСК = UTC+3
+        
         startDate = new Date();
-        startDate.setHours(0, 0, 0, 0);
+        startDate.setUTCHours(-mskOffset, 0, 0, 0); // 00:00 МСК = 21:00 предыдущего дня UTC
         
         endDate = new Date();
-        endDate.setHours(23, 59, 59, 999);
+        endDate.setUTCHours(23 - mskOffset, 59, 59, 999); // 23:59 МСК = 20:59 UTC
         
-        console.log(`[DEBUG] Today period: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        console.log(`[DEBUG] Today period (MSK): ${startDate.toISOString()} to ${endDate.toISOString()}`);
         console.log(`[DEBUG] Local time: ${startDate.toLocaleString()} to ${endDate.toLocaleString()}`);
     } else {
         // Для недели/месяца: последние N дней от текущего момента
