@@ -179,6 +179,9 @@ const calculateProfit = async (days: number) => {
         
         endDate = new Date();
         endDate.setHours(23, 59, 59, 999);
+        
+        console.log(`[DEBUG] Today period: ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        console.log(`[DEBUG] Local time: ${startDate.toLocaleString()} to ${endDate.toLocaleString()}`);
     } else {
         // Для недели/месяца: последние N дней от текущего момента
         startDate = new Date();
