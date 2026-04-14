@@ -43,6 +43,7 @@ type AdminState = {
     uc?: number;
     title?: string;
     price?: number;
+    message?: string;
 };
 const adminStates = new Map<string, AdminState>();
 
@@ -327,9 +328,71 @@ const getAdminMainKeyboard = () => ({
         [{ text: "📦 Коды", callback_data: "adm_codes" }, { text: "👑 ПП и билеты", callback_data: "adm_pp" }],
         [{ text: "🎮 Prime", callback_data: "adm_prime" }, { text: "💵 Базовые номиналы UC", callback_data: "adm_price_usd" }],
         [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }],
-        [{ text: "💵 Прибыль", callback_data: "adm_profit" }, { text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }]
+        [{ text: "📢 Рассылки", callback_data: "adm_broadcasts" }, { text: "💵 Прибыль", callback_data: "adm_profit" }],
+        [{ text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }]
     ]
 });
+
+// Функция для отправки рассылки
+async function sendBroadcast(adminChatId: string, message: string, photoId: string | null) {
+    // Получаем всех активных пользователей для рассылки
+    const { data: allUsers } = await supabase
+        .from('broadcast_users')
+        .select('chat_id')
+        .eq('is_active', true);
+    
+    const users = allUsers?.map(user => user.chat_id) || [];
+    
+    if (users.length === 0) {
+        await sendTg(adminChatId, '❌ Нет пользователей для рассылки', getAdminMainKeyboard());
+        return;
+    }
+    
+    await sendTg(adminChatId, `🚀 <b>Рассылка запущена!</b>\n\n📊 Отправка ${users.length} пользователям\n⏳ Это может занять время...`, getAdminMainKeyboard());
+    
+    // Отправляем сообщения всем пользователям
+    for (let i = 0; i < users.length; i++) {
+        const chatId = users[i];
+        try {
+            if (photoId) {
+                // Отправляем фото с подписью
+                await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+                    chat_id: chatId,
+                    photo: photoId,
+                    caption: message
+                });
+            } else {
+                await sendTg(chatId, message);
+            }
+            console.log(`[Рассылка] Отправлено ${i + 1}/${users.length} (${chatId})`);
+            
+            // Задержка чтобы не заблокировали
+            if (i < users.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        } catch (error) {
+            console.error(`[Рассылка] Ошибка отправки ${chatId}:`, error);
+        }
+    }
+}
+
+// Функция для добавления пользователя в базу рассылки
+async function addBroadcastUser(chatId: string | number, username?: string, firstName?: string, lastName?: string) {
+    try {
+        await supabase
+            .from('broadcast_users')
+            .upsert({
+                chat_id: Number(chatId),
+                username: username || null,
+                first_name: firstName || null,
+                last_name: lastName || null
+            }, {
+                onConflict: 'chat_id'
+            });
+    } catch (error) {
+        console.error(`[BROADCAST USER] Ошибка добавления пользователя ${chatId}:`, error);
+    }
+}
 
 // --- API РОУТЫ ---
 
@@ -745,6 +808,16 @@ app.post('/api/bot-webhook', async (req, res) => {
         console.log(`[WEBHOOK] Processing message: "${text}" from chat ${chatId}`);
         console.log(`[WEBHOOK] Is admin? ${ADMIN_CHAT_ID.includes(chatId)}`);
 
+        // Добавляем пользователя в базу рассылки
+        if (!ADMIN_CHAT_ID.includes(chatId)) {
+            addBroadcastUser(
+                chatId,
+                message.chat.username,
+                message.chat.first_name,
+                message.chat.last_name
+            );
+        }
+
         if (ADMIN_CHAT_ID.includes(chatId)) {
             // Обработка ввода в режиме ожидания (кнопочная панель)
             const state = adminStates.get(chatId);
@@ -896,6 +969,19 @@ app.post('/api/bot-webhook', async (req, res) => {
                         await sendTg(chatId, `⏰ <b>Временный скин</b>\n\nНазвание: ${state.title}\nЦена: ${price}₽\n\nТеперь отправьте фото скина:`);
                     } else {
                         await sendTg(chatId, '❌ Цена должна быть положительным числом. Введите цену скина в рублях:');
+                    }
+                    return;
+                }
+                
+                if (state.action === 'await_broadcast_message') {
+                    const message = text.trim();
+                    if (message.length > 0) {
+                        adminStates.set(chatId, { action: 'await_broadcast_photo', message });
+                        await sendTg(chatId, `📷 <b>Добавить фото к рассылке?</b>\n\nОтправьте фото или нажмите "Продолжить без фото":`, { 
+                            inline_keyboard: [[{ text: "➡️ Продолжить без фото", callback_data: "broadcast_send_no_photo" }]] 
+                        });
+                    } else {
+                        await sendTg(chatId, '❌ Сообщение не может быть пустым. Введите текст сообщения:');
                     }
                     return;
                 }
@@ -1175,8 +1261,20 @@ if (message && message.photo) {
     if (ADMIN_CHAT_ID.includes(currentChatId)) {
         const caption = message.caption ? message.caption.trim() : '';
         
-        // Обработка временного скина
+        // Обработка фото для рассылки и временного скина
         const state = adminStates.get(currentChatId);
+        if (state && state.action === 'await_broadcast_photo') {
+            adminStates.delete(currentChatId);
+            try {
+                const fileId = message.photo[message.photo.length - 1].file_id;
+                if (state.message) {
+                    await sendBroadcast(currentChatId, state.message, fileId);
+                }
+            } catch (error: any) {
+                await sendTg(currentChatId, `❌ Ошибка обработки фото: ${error.message}`, getAdminMainKeyboard());
+            }
+        }
+        
         if (state && state.action === 'await_temp_skin_photo') {
             adminStates.delete(currentChatId);
             try {
@@ -1268,6 +1366,16 @@ if (message && message.photo) {
         const data = callback_query.data;
         const currentChatId = callback_query.message.chat.id.toString();
         const msgId = callback_query.message.message_id;
+
+        // Добавляем пользователя в базу рассылки
+        if (!ADMIN_CHAT_ID.includes(currentChatId)) {
+            addBroadcastUser(
+                currentChatId,
+                callback_query.message.chat.username,
+                callback_query.message.chat.first_name,
+                callback_query.message.chat.last_name
+            );
+        }
 
         if (data === 'admin_panel') {
             const text = `🔧 <b>Админ-панель</b>\n\nВыберите действие:`;
@@ -1701,6 +1809,42 @@ if (message && message.photo) {
             const result = await calculateProfit(30);
             const text = `💰 <b>Прибыль за месяц</b>\n\n💸 Всего: ${result.totalProfit}₽\n📈 Заказов: ${result.ordersCount} шт.`;
             await editTg(currentChatId, msgId, text, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_profit" }]] });
+        }
+
+        if (data === 'adm_broadcasts') {
+            // Получаем количество активных пользователей для рассылки
+            const { data: allUsers } = await supabase
+                .from('broadcast_users')
+                .select('chat_id')
+                .eq('is_active', true);
+            
+            const users = allUsers?.map(user => user.chat_id) || [];
+            
+            const text = `📢 <b>Рассылки</b>\n\n👥 Всего пользователей: ${users.length}`;
+            
+            const keyboard = {
+                inline_keyboard: [
+                    [{ text: "📝 Создать рассылку", callback_data: "broadcast_create" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            
+            await editTg(currentChatId, msgId, text, keyboard);
+        }
+
+        if (data === 'broadcast_create') {
+            adminStates.set(currentChatId, { action: 'await_broadcast_message' });
+            await editTg(currentChatId, msgId, `📝 <b>Создание рассылки</b>\n\nВведите текст сообщения для всем пользователям:`, { 
+                inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_broadcasts" }]] 
+            });
+        }
+
+        if (data === 'broadcast_send_no_photo') {
+            const state = adminStates.get(currentChatId);
+            if (state && state.message) {
+                adminStates.delete(currentChatId);
+                await sendBroadcast(currentChatId, state.message, null);
+            }
         }
 
         if (data === 'adm_activate_accounts') {
