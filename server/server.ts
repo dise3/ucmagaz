@@ -201,8 +201,8 @@ const calculateProfit = async (days: number) => {
     
     let query = supabase
         .from('orders')
-        .select('final_amount, commission_amount, order_type, amount_uc')
-        .in('status', ['completed', 'paid'])
+        .select('id, final_amount, commission_amount, order_type, amount_uc')
+        .in('status', ['completed', 'paid', 'partial'])
         .in('order_type', ['uc', 'prime', 'pp', 'tickets', 'prime_plus'])
         .gte('created_at', startDate.toISOString());
     
@@ -212,6 +212,11 @@ const calculateProfit = async (days: number) => {
     }
     
     const { data } = await query;
+    
+    console.log(`[DEBUG] calculateProfit: Found ${data?.length || 0} orders for period ${startDate.toISOString()} to ${endDate?.toISOString() || 'now'}`);
+    if (data) {
+        console.log(`[DEBUG] Orders:`, data.map(o => ({ id: o.id || 'unknown', type: o.order_type, amount: o.final_amount, uc: o.amount_uc })));
+    }
     
     let totalProfit = 0;
     
