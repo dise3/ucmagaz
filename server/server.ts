@@ -199,7 +199,7 @@ const calculateProfit = async (days: number) => {
     // Получаем настройки для расчета себестоимости
     const { data: settings } = await supabase
         .from('settings')
-        .select('usd_rate, pp_price_usd, ticket_price_usd, prime_price_usd, prime_1m_usd, prime_3m_usd, prime_6m_usd, prime_12m_usd, prime_plus_1m_usd, prime_plus_3m_usd, prime_plus_6m_usd, prime_plus_12m_usd')
+        .select('usd_rate, pp_price_usd, pp_markup_rub, ticket_price_usd, ticket_markup_rub, prime_price_usd, prime_1m_usd, prime_3m_usd, prime_6m_usd, prime_12m_usd, prime_plus_1m_usd, prime_plus_3m_usd, prime_plus_6m_usd, prime_plus_12m_usd')
         .single();
     
     const { data: baseDenoms } = await supabase
@@ -219,6 +219,9 @@ const calculateProfit = async (days: number) => {
     }
     
     const { data } = await query;
+    const { data: products } = await supabase
+        .from('products')
+        .select('amount_uc, markup_rub');
     
     console.log(`[DEBUG] calculateProfit: Found ${data?.length || 0} orders for period ${startDate.toISOString()} to ${endDate?.toISOString() || 'now'}`);
     if (data) {
@@ -232,6 +235,7 @@ const calculateProfit = async (days: number) => {
         const usdRate = settings.usd_rate || 80;
         console.log(`[DEBUG] USD rate: ${usdRate}`);
         console.log(`[DEBUG] Base denominations:`, baseDenoms);
+        console.log(`[DEBUG] Products with markups:`, products);
         
         for (const order of data) {
             const priceRub = order.price_rub || 0;
@@ -246,30 +250,7 @@ const calculateProfit = async (days: number) => {
                 if (denom) {
                     baseCost = denom.price_usd * usdRate;
                 } else {
-                    // Если нет точного номинала, собираем из базовых номиналов
-                    console.log(`[DEBUG] Order #${order.id}: No exact denomination found for UC=${order.amount_uc}, calculating from base denoms`);
-                    let totalUsd = 0;
-                    let remaining = order.amount_uc;
-                    
-                    // Сортируем номиналы по убыванию для оптимального расчета
-                    const sortedDenoms = baseDenoms?.sort((a: any, b: any) => b.amount_uc - a.amount_uc) || [];
-                    
-                    for (const d of sortedDenoms) {
-                        if (remaining >= d.amount_uc) {
-                            const count = Math.floor(remaining / d.amount_uc);
-                            totalUsd += count * d.price_usd;
-                            remaining -= count * d.amount_uc;
-                        }
-                    }
-                    
-                    // Если остался остаток, используем минимальный номинал
-                    if (remaining > 0 && sortedDenoms.length > 0) {
-                        const minDenom = sortedDenoms[sortedDenoms.length - 1];
-                        totalUsd += (remaining / minDenom.amount_uc) * minDenom.price_usd;
-                    }
-                    
-                    baseCost = totalUsd * usdRate;
-                    console.log(`[DEBUG] Order #${order.id}: Calculated cost from base denoms: ${totalUsd} USD = ${baseCost} RUB`);
+                    console.log(`[DEBUG] Order #${order.id}: No exact denomination found for UC=${order.amount_uc}`);
                 }
             } else if (order.order_type === 'pp') {
                 // Для PP: берем базовую цену из настроек и умножаем на количество единиц (каждая единица = 10k UC)
@@ -294,11 +275,11 @@ const calculateProfit = async (days: number) => {
                 } else {
                     // Если количество месяцев не определено, используем final_amount как запасной вариант
                     const finalAmount = order.final_amount || 0;
-                    if (finalAmount <= 400) {
+                    if (finalAmount <= 200) {
                         primeBasePrice = settings.prime_1m_usd || 0;
-                    } else if (finalAmount <= 900) {
+                    } else if (finalAmount <= 600) {
                         primeBasePrice = settings.prime_3m_usd || 0;
-                    } else if (finalAmount <= 1500) {
+                    } else if (finalAmount <= 1000) {
                         primeBasePrice = settings.prime_6m_usd || 0;
                     } else {
                         primeBasePrice = settings.prime_12m_usd || 0;
@@ -336,7 +317,26 @@ const calculateProfit = async (days: number) => {
                 baseCost = primePlusBasePrice * usdRate;
             }
             
-            const markup = priceRub - baseCost;
+            let markup = 0;
+            
+            // Получаем наценку из базы данных
+            if (order.order_type === 'uc' && order.amount_uc) {
+                const product = products?.find((p: any) => p.amount_uc === order.amount_uc);
+                markup = product?.markup_rub || 0;
+            } else if (order.order_type === 'pp') {
+                const ppUnits = (order.amount_uc || 0) / 10000;
+                markup = (settings?.pp_markup_rub || 0) * ppUnits;
+            } else if (order.order_type === 'tickets') {
+                const ticketUnits = (order.amount_uc || 0) / 100;
+                markup = (settings?.ticket_markup_rub || 0) * ticketUnits;
+            } else if (order.order_type === 'prime') {
+                // Для Prime наценка уже включена в цену
+                markup = priceRub - baseCost;
+            } else if (order.order_type === 'prime_plus') {
+                // Для Prime Plus наценка уже включена в цену
+                markup = priceRub - baseCost;
+            }
+            
             totalMarkup += markup;
             totalCommission += commission;
             console.log(`[DEBUG] Order #${order.id}: price=${priceRub}, baseCost=${baseCost}, markup=${markup}, commission=${commission}`);
