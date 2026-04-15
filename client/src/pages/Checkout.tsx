@@ -101,6 +101,9 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   
   // Определяем, находится ли пользователь в Telegram mini app
   const isTelegramApp = !!(window as any).Telegram?.WebApp;
+  
+  // Отладочная информация
+  console.log('isTelegramApp:', isTelegramApp, 'window.Telegram?.WebApp:', (window as any).Telegram?.WebApp);
 
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
   const isMultiCode = pack.items && pack.items.length > 0;
@@ -413,6 +416,18 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
           </p>
         </div>
       )}
+
+      {/* Отладочная информация */}
+      <div className="bg-blue-500/10 border-2 border-blue-500/30 rounded-2xl p-4">
+        <p className="text-blue-300 font-bold text-center text-sm">
+          Режим: {isTelegramApp ? 'Telegram Mini App' : 'Веб-браузер'}
+        </p>
+        {!isTelegramApp && (
+          <p className="text-blue-300 font-bold text-center text-sm mt-2">
+            Поле юзернейма должно быть видно ниже
+          </p>
+        )}
+      </div>
 
       <div className="space-y-3">
         <label className="text-[12px] font-black text-white uppercase tracking-[0.2em] px-1 text-center block">Метод оплаты</label>
