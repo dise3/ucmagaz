@@ -248,8 +248,9 @@ const calculateProfit = async (days: number) => {
                     console.log(`[DEBUG] Order #${order.id}: No exact product found for UC=${order.amount_uc}`);
                 }
             } else if (order.order_type === 'pp') {
-                // Для PP: берем базовую цену из настроек
-                baseCost = (settings.pp_price_usd || 0) * usdRate;
+                // Для PP: берем базовую цену из настроек и умножаем на количество единиц (каждая единица = 10k UC)
+                const ppUnits = (order.amount_uc || 0) / 10000;
+                baseCost = (settings.pp_price_usd || 0) * ppUnits * usdRate;
             } else if (order.order_type === 'tickets') {
                 // Для билетов: берем базовую цену из настроек
                 baseCost = (settings.ticket_price_usd || 0) * usdRate;
