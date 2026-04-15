@@ -202,8 +202,8 @@ const calculateProfit = async (days: number) => {
         .select('usd_rate, pp_price_usd, ticket_price_usd, prime_price_usd, prime_1m_usd, prime_3m_usd, prime_6m_usd, prime_12m_usd, prime_plus_1m_usd, prime_plus_3m_usd, prime_plus_6m_usd, prime_plus_12m_usd')
         .single();
     
-    const { data: baseDenoms } = await supabase
-        .from('base_denominations')
+    const { data: products } = await supabase
+        .from('products')
         .select('amount_uc, price_usd');
     
     let query = supabase
@@ -230,7 +230,7 @@ const calculateProfit = async (days: number) => {
     if (data && settings) {
         const usdRate = settings.usd_rate || 80;
         console.log(`[DEBUG] USD rate: ${usdRate}`);
-        console.log(`[DEBUG] Base denominations:`, baseDenoms);
+        console.log(`[DEBUG] Products:`, products);
         
         for (const order of data) {
             const priceRub = order.price_rub || 0;
@@ -239,13 +239,13 @@ const calculateProfit = async (days: number) => {
             
             // Расчет реальной себестоимости
             if (order.order_type === 'uc' && order.amount_uc) {
-                // Для UC: ищем базовую цену в base_denominations
-                const denom = baseDenoms?.find(d => d.amount_uc === order.amount_uc);
-                console.log(`[DEBUG] Order #${order.id}: Looking for UC=${order.amount_uc}, found denom:`, denom);
-                if (denom) {
-                    baseCost = denom.price_usd * usdRate;
+                // Для UC: ищем базовую цену в products
+                const product = products?.find(p => p.amount_uc === order.amount_uc);
+                console.log(`[DEBUG] Order #${order.id}: Looking for UC=${order.amount_uc}, found product:`, product);
+                if (product) {
+                    baseCost = product.price_usd * usdRate;
                 } else {
-                    console.log(`[DEBUG] Order #${order.id}: No exact denomination found for UC=${order.amount_uc}`);
+                    console.log(`[DEBUG] Order #${order.id}: No exact product found for UC=${order.amount_uc}`);
                 }
             } else if (order.order_type === 'pp') {
                 // Для PP: берем базовую цену из настроек
