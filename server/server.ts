@@ -225,7 +225,8 @@ const calculateProfit = async (days: number) => {
         console.log(`[DEBUG] Orders:`, data.map(o => ({ id: o.id || 'unknown', type: o.order_type, price: o.price_rub, final: o.final_amount, uc: o.amount_uc })));
     }
     
-    let totalProfit = 0;
+    let totalMarkup = 0;
+    let totalCommission = 0;
     
     if (data && settings) {
         const usdRate = settings.usd_rate || 80;
@@ -293,11 +294,11 @@ const calculateProfit = async (days: number) => {
                 } else {
                     // Если количество месяцев не определено, используем final_amount как запасной вариант
                     const finalAmount = order.final_amount || 0;
-                    if (finalAmount <= 200) {
+                    if (finalAmount <= 400) {
                         primeBasePrice = settings.prime_1m_usd || 0;
-                    } else if (finalAmount <= 600) {
+                    } else if (finalAmount <= 900) {
                         primeBasePrice = settings.prime_3m_usd || 0;
-                    } else if (finalAmount <= 1000) {
+                    } else if (finalAmount <= 1500) {
                         primeBasePrice = settings.prime_6m_usd || 0;
                     } else {
                         primeBasePrice = settings.prime_12m_usd || 0;
@@ -335,11 +336,18 @@ const calculateProfit = async (days: number) => {
                 baseCost = primePlusBasePrice * usdRate;
             }
             
-            const orderProfit = priceRub - baseCost - commission;
-            console.log(`[DEBUG] Order #${order.id}: price=${priceRub}, baseCost=${baseCost}, commission=${commission}, profit=${orderProfit}`);
-            totalProfit += orderProfit;
+            const markup = priceRub - baseCost;
+            totalMarkup += markup;
+            totalCommission += commission;
+            console.log(`[DEBUG] Order #${order.id}: price=${priceRub}, baseCost=${baseCost}, markup=${markup}, commission=${commission}`);
         }
     }
+    
+    // Комиссия от общей суммы наценок (4.85% для SBP)
+    const commissionFromMarkup = totalMarkup * 0.0485;
+    const totalProfit = totalMarkup - commissionFromMarkup;
+    
+    console.log(`[DEBUG] Total markup: ${totalMarkup}, commission from markup: ${commissionFromMarkup}, final profit: ${totalProfit}`);
     
     return { totalProfit, ordersCount: data?.length || 0 };
 };
