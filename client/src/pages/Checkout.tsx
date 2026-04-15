@@ -94,6 +94,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   const [uid, setUid] = useState('');
   const [username, setUsername] = useState('');
   const [showHelp, setShowHelp] = useState(false);
+  const [showUsernameHelp, setShowUsernameHelp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
@@ -188,13 +189,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       return;
     }
     
-    // Проверяем юзернейм только для веб-версии
-    if (!isTelegramApp && !username.trim()) {
-      setError('Пожалуйста, введите ваш юзернейм для связи');
-      setIsLoading(false);
-      return;
-    }
-
+    
     const tg = (window as any).Telegram?.WebApp;
     const user_chat_id = tg?.initDataUnsafe?.user?.id;
 
@@ -393,9 +388,26 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       {/* Поле для юзернейма - только для веб-версии */}
       {!isTelegramApp && (
         <div className="space-y-3">
-          <label className="text-[12px] font-black text-white uppercase tracking-[0.2em] px-1">
-            Юзернейм для связи <span className="text-red-400">*</span>
-          </label>
+          <div className="flex items-center gap-2 px-1">
+            <label className="text-[12px] font-black text-white uppercase tracking-[0.2em]">
+              Юзернейм для связи
+            </label>
+            <button 
+              onClick={() => setShowUsernameHelp(!showUsernameHelp)}
+              className="w-4 h-4 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center flex-shrink-0"
+            >
+              <span className="text-white text-[10px] font-bold">?</span>
+            </button>
+          </div>
+          
+          {/* Всплывающая подсказка */}
+          {showUsernameHelp && (
+            <div className="bg-gray-700/30 border border-gray-600/40 rounded-xl p-3 mx-1">
+              <p className="text-gray-300 text-[11px] leading-relaxed">
+                Если вдруг будет какая-то проблема, чтобы администратор мог с вами связаться
+              </p>
+            </div>
+          )}
           <div className="relative">
             <input 
               value={username}
@@ -463,7 +475,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       <button 
         onClick={() => { triggerHapticFeedback('heavy'); handlePayment(); }} 
         className="w-full bg-amber-500 hover:bg-amber-400 py-6 rounded-2xl font-black text-black text-xl active:scale-[0.98] transition-all uppercase tracking-tight relative overflow-hidden disabled:opacity-70"
-        disabled={(!pack.is_code && !uid.trim()) || (!isTelegramApp && !username.trim()) || isLoading}
+        disabled={(!pack.is_code && !uid.trim()) || isLoading}
       >
         <div className="relative z-10 flex items-center justify-center gap-2">
           {isLoading ? <><Loader2 className="w-5 h-5 animate-spin" /><span>Обработка...</span></> : <span>Оплатить сейчас</span>}
