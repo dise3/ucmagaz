@@ -186,8 +186,37 @@ const calculateProfit = async (days: number) => {
         
         console.log(`[DEBUG] Today period (MSK): ${startDate.toISOString()} to ${endDate.toISOString()}`);
         console.log(`[DEBUG] Local time: ${startDate.toLocaleString()} to ${endDate.toLocaleString()}`);
+    } else if (days === 30) {
+        // Для месяца: с 1 числа текущего месяца по сегодня
+        const now = new Date();
+        const mskOffset = 3; // МСК = UTC+3
+        
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+        startDate.setUTCHours(-mskOffset, 0, 0, 0); // 00:00 МСК 1 числа
+        
+        endDate = new Date();
+        endDate.setUTCHours(23 - mskOffset, 59, 59, 999); // 23:59 МСК сегодня
+        
+        console.log(`[DEBUG] Month period (MSK): ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        console.log(`[DEBUG] Local time: ${startDate.toLocaleString()} to ${endDate.toLocaleString()}`);
+    } else if (days === -1) {
+        // Для прошлого месяца: с 1 по последнее число прошлого месяца
+        const now = new Date();
+        const mskOffset = 3; // МСК = UTC+3
+        
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0); // Последнее число прошлого месяца
+        
+        startDate = new Date(lastMonth.getFullYear(), lastMonth.getMonth(), 1);
+        startDate.setUTCHours(-mskOffset, 0, 0, 0); // 00:00 МСК 1 числа прошлого месяца
+        
+        endDate = new Date(lastMonthEnd.getFullYear(), lastMonthEnd.getMonth(), lastMonthEnd.getDate());
+        endDate.setUTCHours(23 - mskOffset, 59, 59, 999); // 23:59 МСК последнего числа прошлого месяца
+        
+        console.log(`[DEBUG] Last month period (MSK): ${startDate.toISOString()} to ${endDate.toISOString()}`);
+        console.log(`[DEBUG] Local time: ${startDate.toLocaleString()} to ${endDate.toLocaleString()}`);
     } else {
-        // Для недели/месяца: последние N дней от текущего момента
+        // Для недели: последние 7 дней от текущего момента
         startDate = new Date();
         startDate.setDate(startDate.getDate() - days);
         startDate.setHours(0, 0, 0, 0);
@@ -1818,6 +1847,7 @@ if (message && message.photo) {
                     [{ text: "📅 За сегодня", callback_data: "profit_today" }],
                     [{ text: "📆 За неделю", callback_data: "profit_week" }],
                     [{ text: "📊 За месяц", callback_data: "profit_month" }],
+                    [{ text: "📈 За прошлый месяц", callback_data: "profit_last_month" }],
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
@@ -1839,6 +1869,12 @@ if (message && message.photo) {
         if (data === 'profit_month') {
             const result = await calculateProfit(30);
             const text = `💰 <b>Прибыль за месяц</b>\n\n💸 Всего: ${result.totalProfit}₽\n📈 Заказов: ${result.ordersCount} шт.`;
+            await editTg(currentChatId, msgId, text, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_profit" }]] });
+        }
+
+        if (data === 'profit_last_month') {
+            const result = await calculateProfit(-1);
+            const text = `💰 <b>Прибыль за прошлый месяц</b>\n\n💸 Всего: ${result.totalProfit}₽\n📈 Заказов: ${result.ordersCount} шт.`;
             await editTg(currentChatId, msgId, text, { inline_keyboard: [[{ text: "🔙 Назад", callback_data: "adm_profit" }]] });
         }
 
