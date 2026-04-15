@@ -23,6 +23,9 @@ const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
+// Раздача статики из client/dist
+app.use(express.static(join(__dirname, '..', 'client', 'dist')));
+
 // --- ИНИЦИАЛИЗАЦИЯ SUPABASE ---
 const supabase = createClient(
     process.env.SUPABASE_URL!, 

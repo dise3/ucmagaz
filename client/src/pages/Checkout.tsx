@@ -100,10 +100,12 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   const [settings, setSettings] = useState<any>(null);
   
   // Определяем, находится ли пользователь в Telegram mini app
-  const isTelegramApp = !!(window as any).Telegram?.WebApp;
+  const isTelegramApp = !!(window as any).Telegram?.WebApp && 
+                        !!(window as any).Telegram?.WebApp?.initDataUnsafe?.user &&
+                        (window.location.href.includes('t.me') || window.location.search.includes('tgWebAppStartParam'));
   
   // Отладочная информация
-  console.log('isTelegramApp:', isTelegramApp, 'window.Telegram?.WebApp:', (window as any).Telegram?.WebApp);
+  console.log('isTelegramApp:', isTelegramApp, 'window.Telegram?.WebApp:', (window as any).Telegram?.WebApp, 'initDataUnsafe:', (window as any).Telegram?.WebApp?.initDataUnsafe, 'URL:', window.location.href);
 
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
   const isMultiCode = pack.items && pack.items.length > 0;
@@ -389,7 +391,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       )}
 
       {/* Поле для юзернейма - только для веб-версии */}
-      {!isTelegramApp && (
+      {true && ( // Временно принудительно включено для тестирования
         <div className="space-y-3">
           <label className="text-[12px] font-black text-white uppercase tracking-[0.2em] px-1">
             Юзернейм для связи <span className="text-red-400">*</span>
