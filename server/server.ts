@@ -113,6 +113,23 @@ const getUserInfo = async (chatId: string | number) => {
     }
 };
 
+// Функция для получения имени пользователя для админских уведомлений
+const getDisplayName = async (order: any) => {
+    // Если есть username в заказе (веб-пользователь), используем его
+    if (order.username) {
+        return order.username.startsWith('@') ? order.username : `@${order.username}`;
+    }
+    
+    // Если это Telegram пользователь, получаем данные через API
+    if (order.user_chat_id) {
+        const userInfo = await getUserInfo(order.user_chat_id);
+        return userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
+    }
+    
+    // Запасной вариант
+    return 'Неизвестный пользователь';
+};
+
 const editTg = async (chatId: string | number, msgId: number, text: string, replyMarkup?: any) => {
     try {
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/editMessageText`, {
@@ -625,7 +642,7 @@ app.get('/api/promo-products', async (req, res) => {
 // 4. Создание платежа
 app.post('/api/create-payment', async (req, res) => {
     try {
-        const { uid, amount, price, method_slug, user_chat_id, is_code, type } = req.body;
+        const { uid, amount, price, method_slug, user_chat_id, is_code, type, username } = req.body;
 
         const { data: order, error } = await supabase
             .from('orders')
@@ -635,6 +652,7 @@ app.post('/api/create-payment', async (req, res) => {
                 price_rub: price, 
                 status: 'pending', 
                 user_chat_id,
+                username: username || null,
                 is_code_order: !!is_code, 
                 order_type: type || 'uc' 
             }])
@@ -731,21 +749,18 @@ app.post('/api/payment-callback', async (req, res) => {
                 if (codeEntry) {
                     await supabase.from('codes_stock').update({ is_used: true }).eq('id', codeEntry.id);
                     await sendTg(order.user_chat_id, `🎁 <b>Ваш промокод на ${order.amount_uc} UC:</b>\n\n<code>${codeEntry.code}</code>\n\nАктивируйте на Midasbuy.`);
-                    const userInfo = await getUserInfo(order.user_chat_id);
-                    const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
+                    const username = await getDisplayName(order);
                     await sendTg(ADMIN_CHAT_ID, `✅ Код на ${order.amount_uc} UC выдан автоматически (Заказ #${order.id}) для ${username}`);
                     await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
                 } else {
-                    const userInfo = await getUserInfo(order.user_chat_id);
-                    const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
+                    const username = await getDisplayName(order);
                     await sendTg(ADMIN_CHAT_ID, `⚠️ <b>НЕТ КОДОВ!</b> Заказ #${order.id} на ${order.amount_uc} UC для ${username}. Выдайте вручную!`);
                 }
                 return;
             }
 
             if (order.amount_uc < 1800 && order.order_type === 'uc') {
-                const userInfo = await getUserInfo(order.user_chat_id);
-                const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
+                const username = await getDisplayName(order);
                 const adminMsg = `🤖 <b>АВТО-ВЫДАЧА #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: <b>${order.amount_uc} UC</b>\n💵 Руб: ${order.price_rub}\n\n🤖 <i>Бот выдает автоматически.</i>`;
 
                 await sendTg(ADMIN_CHAT_ID, adminMsg);
@@ -757,8 +772,7 @@ app.post('/api/payment-callback', async (req, res) => {
                     await sendTg(ADMIN_CHAT_ID, `❌ Ошибка бота в заказе #${order.id}`);
                 }
             } else if (order.order_type === 'pp' || order.order_type === 'tickets' || order.order_type === 'skin' || order.order_type === 'prime' || order.order_type === 'prime_plus') {
-                const userInfo = await getUserInfo(order.user_chat_id);
-                const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
+                const username = await getDisplayName(order);
                 const item = order.order_type === 'pp' ? 'ПП' : order.order_type === 'tickets' ? 'билетов' : order.order_type === 'skin' ? 'скина' : order.order_type === 'prime' ? 'Prime' : 'Prime Plus';
                 const adminMsg = `💰 <b>ЗАКАЗ ${item.toUpperCase()} #${order.id}</b>\n\n👤 <b>${username}</b>\n${order.order_type === 'skin' ? `🎭 Скин: <code>${order.uid_player}</code>\n` : `🆔 UID: <code>${order.uid_player}</code>\n👑 Сумма: <b>${order.amount_uc} ${item}</b>\n`}💵 Руб: ${order.price_rub}`;
                 const keyboard = { inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `done_${order.id}` }]] };
@@ -768,8 +782,7 @@ app.post('/api/payment-callback', async (req, res) => {
                 await sendTg(order.user_chat_id, userMsg);
             } else {
                 // Крупные заказы 1800+ - автовыдача с задержкой 2 минуты и возможностью перехвата
-                const userInfo = await getUserInfo(order.user_chat_id);
-                const username = userInfo.username ? `@${userInfo.username}` : `${userInfo.first_name} ${userInfo.last_name}`.trim();
+                const username = await getDisplayName(order);
                 const adminMsg = `💰 <b>КРУПНЫЙ ЗАКАЗ #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: ${order.amount_uc} UC\n💵 Руб: ${order.price_rub}\n\n⏰ <i>Автовыдача через 2 минуты. Можете перехватить.</i>`;
                 
                 const keyboard = { inline_keyboard: [[{ text: "🛑 Перехватить (Отменить бота)", callback_data: `hold_${order.id}` }]] };

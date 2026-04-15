@@ -92,11 +92,15 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   console.log('Pack in Checkout:', pack);
   const [paymentMethod, setPaymentMethod] = useState<'sbp' | 'card'>('sbp');
   const [uid, setUid] = useState('');
+  const [username, setUsername] = useState('');
   const [showHelp, setShowHelp] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [settings, setSettings] = useState<any>(null);
+  
+  // Определяем, находится ли пользователь в Telegram mini app
+  const isTelegramApp = !!(window as any).Telegram?.WebApp;
 
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
   const isMultiCode = pack.items && pack.items.length > 0;
@@ -178,6 +182,13 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       setIsLoading(false);
       return;
     }
+    
+    // Проверяем юзернейм только для веб-версии
+    if (!isTelegramApp && !username.trim()) {
+      setError('Пожалуйста, введите ваш юзернейм для связи');
+      setIsLoading(false);
+      return;
+    }
 
     const tg = (window as any).Telegram?.WebApp;
     const user_chat_id = tg?.initDataUnsafe?.user?.id;
@@ -217,7 +228,8 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
           is_code: pack.is_code || false,
           type: pack.type || 'uc',
           item_name: itemName,
-          promo_items: isMultiCode ? items : undefined
+          promo_items: isMultiCode ? items : undefined,
+          username: !isTelegramApp ? username.trim() : undefined
         })
       });
 
@@ -372,6 +384,27 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
           </div>
         </div>
       )}
+
+      {/* Поле для юзернейма - только для веб-версии */}
+      {!isTelegramApp && (
+        <div className="space-y-3">
+          <label className="text-[12px] font-black text-white uppercase tracking-[0.2em] px-1">
+            Юзернейм для связи <span className="text-red-400">*</span>
+          </label>
+          <div className="relative">
+            <input 
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              className="w-full bg-white/15 border-2 border-white/20 rounded-2xl py-4 px-6 text-white font-black text-lg outline-none focus:border-amber-500/60 transition-all" 
+              placeholder="@username" 
+              disabled={isLoading}
+            />
+          </div>
+          <p className="text-[11px] text-white/50 px-1">
+            Нужен для связи с вами в случае вопросов по заказу
+          </p>
+        </div>
+      )}
       
       {pack.is_code && (
         <div className="bg-amber-500/10 border-2 border-amber-500/30 rounded-2xl p-4">
@@ -424,7 +457,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       <button 
         onClick={() => { triggerHapticFeedback('heavy'); handlePayment(); }} 
         className="w-full bg-amber-500 hover:bg-amber-400 py-6 rounded-2xl font-black text-black text-xl active:scale-[0.98] transition-all uppercase tracking-tight relative overflow-hidden disabled:opacity-70"
-        disabled={(!pack.is_code && !uid.trim()) || isLoading}
+        disabled={(!pack.is_code && !uid.trim()) || (!isTelegramApp && !username.trim()) || isLoading}
       >
         <div className="relative z-10 flex items-center justify-center gap-2">
           {isLoading ? <><Loader2 className="w-5 h-5 animate-spin" /><span>Обработка...</span></> : <span>Оплатить сейчас</span>}
