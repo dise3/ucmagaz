@@ -245,7 +245,30 @@ const calculateProfit = async (days: number) => {
                 if (denom) {
                     baseCost = denom.price_usd * usdRate;
                 } else {
-                    console.log(`[DEBUG] Order #${order.id}: No exact denomination found for UC=${order.amount_uc}`);
+                    // Если нет точного номинала, собираем из базовых номиналов
+                    console.log(`[DEBUG] Order #${order.id}: No exact denomination found for UC=${order.amount_uc}, calculating from base denoms`);
+                    let totalUsd = 0;
+                    let remaining = order.amount_uc;
+                    
+                    // Сортируем номиналы по убыванию для оптимального расчета
+                    const sortedDenoms = baseDenoms?.sort((a: any, b: any) => b.amount_uc - a.amount_uc) || [];
+                    
+                    for (const d of sortedDenoms) {
+                        if (remaining >= d.amount_uc) {
+                            const count = Math.floor(remaining / d.amount_uc);
+                            totalUsd += count * d.price_usd;
+                            remaining -= count * d.amount_uc;
+                        }
+                    }
+                    
+                    // Если остался остаток, используем минимальный номинал
+                    if (remaining > 0 && sortedDenoms.length > 0) {
+                        const minDenom = sortedDenoms[sortedDenoms.length - 1];
+                        totalUsd += (remaining / minDenom.amount_uc) * minDenom.price_usd;
+                    }
+                    
+                    baseCost = totalUsd * usdRate;
+                    console.log(`[DEBUG] Order #${order.id}: Calculated cost from base denoms: ${totalUsd} USD = ${baseCost} RUB`);
                 }
             } else if (order.order_type === 'pp') {
                 // Для PP: берем базовую цену из настроек и умножаем на количество единиц (каждая единица = 10k UC)
