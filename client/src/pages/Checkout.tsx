@@ -391,7 +391,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       )}
 
       {/* Поле для юзернейма - только для веб-версии */}
-      {true && ( // Временно принудительно включено для тестирования
+      {!isTelegramApp && (
         <div className="space-y-3">
           <label className="text-[12px] font-black text-white uppercase tracking-[0.2em] px-1">
             Юзернейм для связи <span className="text-red-400">*</span>
