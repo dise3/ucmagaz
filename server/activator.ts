@@ -404,6 +404,15 @@ export async function activateSingleCode(account: { email: string, pass: string 
         }
         await idInputInModal.waitFor({ state: 'attached', timeout: 15000 });
         const idInputVisible = await idInputInModal.isVisible().catch(() => false);
+        
+        // Очищаем поле перед вводом нового UID
+        await idInputInModal.evaluate((el) => {
+            const input = el as HTMLInputElement;
+            input.value = '';
+            input.focus();
+            input.select();
+        }).catch(() => {});
+        
         if (idInputVisible) {
             await idInputInModal.fill(uid);
         } else {
