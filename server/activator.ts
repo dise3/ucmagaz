@@ -133,7 +133,8 @@ export async function activateSingleCode(account: { email: string, pass: string 
             await acceptCookiesBtn.click({ force: true });
             await page.waitForTimeout(2000);
         }
-
+        await page.waitForTimeout(2000);
+        await killEverythingOverContent(page);
         const emailLabel = page.locator('p[class*="MobileNav_country"][title*="@"]').first();
         let isLoggedIn = await emailLabel.isVisible({ timeout: 4000 }).catch(() => false);
 
@@ -385,12 +386,12 @@ export async function activateSingleCode(account: { email: string, pass: string 
 
         console.log('Очистка');
         await page.waitForTimeout(3000);
+        await killEverythingOverContent(page);
         await page.evaluate(() => {
             }).catch(() => {});
         const switchUidBtn = page.locator('[class*="UserDataBox_switch_btn"]').first();
         const openIdBtn = page.locator('div[class*="Button"], button').filter({ hasText: /^Введите ID игрока$/i }).first();
         const idInputInModal = page.locator('input[placeholder*="Введите ID"], .input-account').first();
-        
         let isIdModalVisible = await idInputInModal.isVisible().catch(() => false);
         if (!isIdModalVisible) {
             if (await switchUidBtn.count() > 0) {
@@ -402,28 +403,11 @@ export async function activateSingleCode(account: { email: string, pass: string 
             }
             await page.waitForTimeout(2000);
         }
-        await idInputInModal.waitFor({ state: 'attached', timeout: 15000 });
-        const idInputVisible = await idInputInModal.isVisible().catch(() => false);
-        
-        // Очищаем поле перед вводом нового UID
-        await idInputInModal.evaluate((el) => {
-            const input = el as HTMLInputElement;
-            input.value = '';
-            input.focus();
-            input.select();
-        }).catch(() => {});
-        
-        if (idInputVisible) {
-            await idInputInModal.fill(uid);
-        } else {
-            await idInputInModal.evaluate((el, id) => {
-                const input = el as HTMLInputElement;
-                input.value = id;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            }, uid);
-            console.log('[🆔] UID введен в скрытое поле');
-        }
+        await idInputInModal.waitFor({ state: 'visible', timeout: 15000 });
+        await idInputInModal.click({ force: true });
+        await idInputInModal.fill('');
+        await idInputInModal.fill(uid);
+        console.log(`[🆔] UID введён: ${uid}`);
         
         const okIdBtn = page.locator('[class*="Button_text"]', { hasText: /^(Окей|Ок|OK)$/i }).first();
         if (await okIdBtn.count() > 0) {
