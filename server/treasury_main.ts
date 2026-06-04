@@ -160,6 +160,106 @@ export async function convertRubToUsdt(supabase: SupabaseClient, rateRubPerUsdt:
     };
 }
 
+export type ChildTreasurySummary = {
+    balanceUsdt: number;
+    lastRate: number | null;
+    todayRub: number;
+    todayMsk: string;
+    unconvertedRub: number;
+    unconvertedDays: { day_date: string; rub_total: number }[];
+};
+
+function childApiBase(): string | null {
+    if (!CHILD_STORE_API_URL) return null;
+    return CHILD_STORE_API_URL.replace(/\/$/, '');
+}
+
+function childApiHeaders() {
+    return {
+        'x-treasury-secret': TREASURY_API_SECRET,
+        'Content-Type': 'application/json',
+    };
+}
+
+function mapChildSummary(data: Record<string, unknown>): ChildTreasurySummary {
+    const days = (data.unconvertedDays as { day_date: string; rub_total: number }[]) ?? [];
+    return {
+        balanceUsdt: Number(data.balanceUsdt ?? 0),
+        lastRate: data.lastRate != null ? Number(data.lastRate) : null,
+        todayRub: Number(data.todayRub ?? 0),
+        todayMsk: String(data.todayMsk ?? ''),
+        unconvertedRub: Number(data.unconvertedRub ?? 0),
+        unconvertedDays: days.map((d) => ({
+            day_date: d.day_date,
+            rub_total: Number(d.rub_total),
+        })),
+    };
+}
+
+/** Сводка казны дочернего магазина (GET API дочернего) */
+export async function getChildTreasurySummary() {
+    const base = childApiBase();
+    if (!base) return { ok: false as const, error: 'CHILD_STORE_API_URL не задан' };
+    if (!TREASURY_API_SECRET) return { ok: false as const, error: 'TREASURY_API_SECRET не задан' };
+
+    try {
+        const res = await axios.get(`${base}/api/treasury/summary`, { headers: childApiHeaders() });
+        return { ok: true as const, summary: mapChildSummary(res.data) };
+    } catch (e: any) {
+        const msg = e.response?.data?.error || e.message || 'Ошибка API дочернего';
+        return { ok: false as const, error: msg };
+    }
+}
+
+export function formatChildTreasuryMessage(s: ChildTreasurySummary): string {
+    const lines =
+        s.unconvertedDays.length > 0
+            ? s.unconvertedDays
+                  .map((d) => `• ${d.day_date}: ${formatRub(d.rub_total)}`)
+                  .join('\n')
+            : '— нет дней для конвертации';
+    const rateLine = s.lastRate ? `\nПоследний курс: <b>${s.lastRate}</b> руб/USDT` : '';
+    return (
+        `🏪 <b>Дочерний магазин</b>\n\n` +
+        `💵 USDT к выводу: <b>${formatUsdt(s.balanceUsdt)}</b>${rateLine}\n` +
+        `📅 Сегодня (${s.todayMsk}): <b>${formatRub(s.todayRub)}</b> — не конвертируется\n\n` +
+        `⏳ К конвертации (прошлые дни):\n${lines}\n` +
+        `<b>Итого: ${formatRub(s.unconvertedRub)}</b>`
+    );
+}
+
+/**
+ * Конвертация продаж дочернего за все прошлые дни (кроме сегодня МСК) по курсу руб/USDT.
+ * Вызывает POST /api/treasury/convert на сервере дочернего магазина.
+ */
+export async function convertChildRubToUsdt(rateRubPerUsdt: number) {
+    const base = childApiBase();
+    if (!base) return { ok: false as const, error: 'CHILD_STORE_API_URL не задан' };
+    if (!TREASURY_API_SECRET) return { ok: false as const, error: 'TREASURY_API_SECRET не задан' };
+    if (!rateRubPerUsdt || rateRubPerUsdt <= 0) {
+        return { ok: false as const, error: 'Некорректный курс' };
+    }
+
+    try {
+        const res = await axios.post(
+            `${base}/api/treasury/convert`,
+            { rate: rateRubPerUsdt },
+            { headers: childApiHeaders() }
+        );
+        return res.data as {
+            ok: boolean;
+            error?: string;
+            totalRub?: number;
+            usdtAdded?: number;
+            rate?: number;
+            newBalanceUsdt?: number;
+        };
+    } catch (e: any) {
+        const msg = e.response?.data?.error || e.message || 'Ошибка API дочернего';
+        return { ok: false as const, error: msg };
+    }
+}
+
 /** USDT-эквивалент для заявки дочернего (по последнему курсу) */
 export async function rubToUsdtHint(supabase: SupabaseClient, rub: number): Promise<string> {
     const { data: t } = await supabase.from('main_treasury').select('usdt_rate_rub').eq('id', 1).single();
@@ -195,7 +295,10 @@ export async function completeChildWithdrawal(requestId: number) {
     }
 }
 
-/** Зачислить ₽ на баланс дочернего магазина */
+/**
+ * @deprecated Ручное зачисление не используется: ₽ копятся на дочернем после оплат.
+ * Оставлено для аварийного вызова из консоли при необходимости.
+ */
 export async function creditChildStore(amountRub: number) {
     if (!CHILD_STORE_API_URL) {
         return { ok: false as const, error: 'CHILD_STORE_API_URL не задан' };

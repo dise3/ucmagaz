@@ -10,11 +10,10 @@ import cors from 'cors';
 import { fulfillOrder } from './bot_manager.ts';
 import {
     recordOrderRevenue,
-    getMainTreasurySummary,
-    formatMainTreasuryMessage,
-    convertRubToUsdt,
+    getChildTreasurySummary,
+    formatChildTreasuryMessage,
+    convertChildRubToUsdt,
     completeChildWithdrawal,
-    creditChildStore,
     formatRub,
 } from './treasury_main.ts';
 import { createClient } from '@supabase/supabase-js';
@@ -56,8 +55,6 @@ type AdminState = {
     title?: string;
     price?: number;
     message?: string;
-    withdrawAmount?: number;
-    creditChildAmount?: number;
 };
 const adminStates = new Map<string, AdminState>();
 
@@ -420,8 +417,7 @@ const getAdminMainKeyboard = () => ({
         [{ text: "🎮 Prime", callback_data: "adm_prime" }, { text: "💵 Базовые номиналы UC", callback_data: "adm_price_usd" }],
         [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }],
         [{ text: "📢 Рассылки", callback_data: "adm_broadcasts" }, { text: "💵 Прибыль", callback_data: "adm_profit" }],
-        [{ text: "💱 Конвертация ₽→USDT", callback_data: "adm_convert" }],
-        [{ text: "➕ Зачислить ₽ дочернему", callback_data: "adm_credit_child" }],
+        [{ text: "💱 Курс для дочернего", callback_data: "adm_child_convert" }],
         [{ text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }]
     ]
 });
@@ -752,6 +748,7 @@ app.post('/api/payment-callback', async (req, res) => {
 
             if (!order) return res.status(404).send('Not Found');
 
+            // Учёт выручки главного магазина (дочерний — свой payment-callback + recordChildOrderRevenue)
             try {
                 await recordOrderRevenue(supabase, order.id, Number(order.price_rub) || 0, order.created_at);
             } catch (e) {
@@ -1079,42 +1076,23 @@ app.post('/api/bot-webhook', async (req, res) => {
                     }
                     return;
                 }
-                if (state.action === 'await_convert_rate') {
+                if (state.action === 'await_child_convert_rate') {
                     const rate = parseFloat(text.trim().replace(',', '.'));
                     if (isNaN(rate) || rate <= 0) {
                         await sendTg(chatId, '❌ Введите курс (руб за 1 USDT), например: 95');
                         return;
                     }
-                    const result = await convertRubToUsdt(supabase, rate);
+                    const result = await convertChildRubToUsdt(rate);
                     adminStates.delete(chatId);
                     if (!result.ok) {
                         await sendTg(chatId, `❌ ${result.error}`, getAdminMainKeyboard());
                     } else {
                         await sendTg(
                             chatId,
-                            `✅ <b>Конвертация</b>\n\n` +
+                            `✅ <b>Курс для дочернего</b>\n\n` +
                                 `${formatRub(result.totalRub!)} → ${result.usdtAdded!.toFixed(2)} USDT\n` +
                                 `Курс: ${result.rate} руб/USDT\n` +
-                                `Баланс USDT: ${result.newBalanceUsdt!.toFixed(2)}`,
-                            getAdminMainKeyboard()
-                        );
-                    }
-                    return;
-                }
-                if (state.action === 'await_credit_child') {
-                    const amount = parseFloat(text.trim().replace(',', '.'));
-                    if (isNaN(amount) || amount <= 0) {
-                        await sendTg(chatId, '❌ Введите сумму в рублях');
-                        return;
-                    }
-                    const result = await creditChildStore(amount);
-                    adminStates.delete(chatId);
-                    if (!result.ok) {
-                        await sendTg(chatId, `❌ ${result.error}`, getAdminMainKeyboard());
-                    } else {
-                        await sendTg(
-                            chatId,
-                            `✅ Дочернему зачислено <b>${formatRub(amount)}</b>\nБаланс: ${formatRub(result.balanceRub ?? 0)}`,
+                                `USDT к выводу (дочерний): ${result.newBalanceUsdt!.toFixed(2)}`,
                             getAdminMainKeyboard()
                         );
                     }
@@ -1885,26 +1863,31 @@ if (message && message.photo) {
             }
         }
 
-        if (data === 'adm_convert') {
-            const summary = await getMainTreasurySummary(supabase);
-            const text = formatMainTreasuryMessage(summary);
-            if (summary.unconvertedRub <= 0) {
-                await editTg(currentChatId, msgId, text + '\n\n<i>Нет ₽ за прошлые дни.</i>', {
-                    inline_keyboard: [[{ text: '🔙 Назад', callback_data: 'adm_back' }]],
-                });
-            } else {
-                adminStates.set(currentChatId, { action: 'await_convert_rate' });
-                await editTg(currentChatId, msgId, text + '\n\n📉 Курс (руб за 1 USDT):', {
-                    inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'adm_back' }]],
-                });
+        if (data === 'adm_child_convert') {
+            const res = await getChildTreasurySummary();
+            if (!res.ok) {
+                await answerCallback(callback_query.id, res.error);
+                return;
             }
-        }
-
-        if (data === 'adm_credit_child') {
-            adminStates.set(currentChatId, { action: 'await_credit_child' });
-            await editTg(currentChatId, msgId, '➕ Сумма в <b>рублях</b> для дочернего магазина:', {
-                inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'adm_back' }]],
-            });
+            const text = formatChildTreasuryMessage(res.summary);
+            if (res.summary.unconvertedRub <= 0) {
+                await editTg(
+                    currentChatId,
+                    msgId,
+                    text + '\n\n<i>Нет ₽ за прошлые дни на дочернем.</i>',
+                    { inline_keyboard: [[{ text: '🔙 Назад', callback_data: 'adm_back' }]] }
+                );
+            } else {
+                adminStates.set(currentChatId, { action: 'await_child_convert_rate' });
+                await editTg(
+                    currentChatId,
+                    msgId,
+                    text +
+                        '\n\n📉 Введите курс для дочернего (руб за 1 USDT).\n' +
+                        '<i>Закроются все прошлые дни без курса, сегодня (МСК) не входит.</i>',
+                    { inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'adm_back' }]] }
+                );
+            }
         }
 
         if (data.startsWith('wdone_')) {
