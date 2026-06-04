@@ -8,6 +8,15 @@ import axios from 'axios';
 import FormData from 'form-data';
 import cors from 'cors';
 import { fulfillOrder } from './bot_manager.ts';
+import {
+    recordOrderRevenue,
+    getMainTreasurySummary,
+    formatMainTreasuryMessage,
+    convertRubToUsdt,
+    completeChildWithdrawal,
+    creditChildStore,
+    formatRub,
+} from './treasury_main.ts';
 import { createClient } from '@supabase/supabase-js';
 import * as fs from 'fs';
 import { fileURLToPath } from 'url';
@@ -47,6 +56,8 @@ type AdminState = {
     title?: string;
     price?: number;
     message?: string;
+    withdrawAmount?: number;
+    creditChildAmount?: number;
 };
 const adminStates = new Map<string, AdminState>();
 
@@ -409,6 +420,8 @@ const getAdminMainKeyboard = () => ({
         [{ text: "🎮 Prime", callback_data: "adm_prime" }, { text: "💵 Базовые номиналы UC", callback_data: "adm_price_usd" }],
         [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }],
         [{ text: "📢 Рассылки", callback_data: "adm_broadcasts" }, { text: "💵 Прибыль", callback_data: "adm_profit" }],
+        [{ text: "💱 Конвертация ₽→USDT", callback_data: "adm_convert" }],
+        [{ text: "➕ Зачислить ₽ дочернему", callback_data: "adm_credit_child" }],
         [{ text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }]
     ]
 });
@@ -739,6 +752,12 @@ app.post('/api/payment-callback', async (req, res) => {
 
             if (!order) return res.status(404).send('Not Found');
 
+            try {
+                await recordOrderRevenue(supabase, order.id, Number(order.price_rub) || 0, order.created_at);
+            } catch (e) {
+                console.error('[treasury_main] recordOrderRevenue', e);
+            }
+
             if (order.is_code_order && order.uid_player !== 'MANUAL_ORDER') {
                 const { data: codeEntry } = await supabase
                     .from('codes_stock')
@@ -1057,6 +1076,47 @@ app.post('/api/bot-webhook', async (req, res) => {
                         });
                     } else {
                         await sendTg(chatId, '❌ Сообщение не может быть пустым. Введите текст сообщения:');
+                    }
+                    return;
+                }
+                if (state.action === 'await_convert_rate') {
+                    const rate = parseFloat(text.trim().replace(',', '.'));
+                    if (isNaN(rate) || rate <= 0) {
+                        await sendTg(chatId, '❌ Введите курс (руб за 1 USDT), например: 95');
+                        return;
+                    }
+                    const result = await convertRubToUsdt(supabase, rate);
+                    adminStates.delete(chatId);
+                    if (!result.ok) {
+                        await sendTg(chatId, `❌ ${result.error}`, getAdminMainKeyboard());
+                    } else {
+                        await sendTg(
+                            chatId,
+                            `✅ <b>Конвертация</b>\n\n` +
+                                `${formatRub(result.totalRub!)} → ${result.usdtAdded!.toFixed(2)} USDT\n` +
+                                `Курс: ${result.rate} руб/USDT\n` +
+                                `Баланс USDT: ${result.newBalanceUsdt!.toFixed(2)}`,
+                            getAdminMainKeyboard()
+                        );
+                    }
+                    return;
+                }
+                if (state.action === 'await_credit_child') {
+                    const amount = parseFloat(text.trim().replace(',', '.'));
+                    if (isNaN(amount) || amount <= 0) {
+                        await sendTg(chatId, '❌ Введите сумму в рублях');
+                        return;
+                    }
+                    const result = await creditChildStore(amount);
+                    adminStates.delete(chatId);
+                    if (!result.ok) {
+                        await sendTg(chatId, `❌ ${result.error}`, getAdminMainKeyboard());
+                    } else {
+                        await sendTg(
+                            chatId,
+                            `✅ Дочернему зачислено <b>${formatRub(amount)}</b>\nБаланс: ${formatRub(result.balanceRub ?? 0)}`,
+                            getAdminMainKeyboard()
+                        );
                     }
                     return;
                 }
@@ -1825,6 +1885,48 @@ if (message && message.photo) {
             }
         }
 
+        if (data === 'adm_convert') {
+            const summary = await getMainTreasurySummary(supabase);
+            const text = formatMainTreasuryMessage(summary);
+            if (summary.unconvertedRub <= 0) {
+                await editTg(currentChatId, msgId, text + '\n\n<i>Нет ₽ за прошлые дни.</i>', {
+                    inline_keyboard: [[{ text: '🔙 Назад', callback_data: 'adm_back' }]],
+                });
+            } else {
+                adminStates.set(currentChatId, { action: 'await_convert_rate' });
+                await editTg(currentChatId, msgId, text + '\n\n📉 Курс (руб за 1 USDT):', {
+                    inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'adm_back' }]],
+                });
+            }
+        }
+
+        if (data === 'adm_credit_child') {
+            adminStates.set(currentChatId, { action: 'await_credit_child' });
+            await editTg(currentChatId, msgId, '➕ Сумма в <b>рублях</b> для дочернего магазина:', {
+                inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'adm_back' }]],
+            });
+        }
+
+        if (data.startsWith('wdone_')) {
+            if (!ADMIN_CHAT_ID.includes(currentChatId)) {
+                await answerCallback(callback_query.id, 'Нет доступа');
+                return;
+            }
+            const requestId = parseInt(data.replace('wdone_', ''), 10);
+            if (!requestId) {
+                await answerCallback(callback_query.id, 'Неверный ID');
+                return;
+            }
+            const result = await completeChildWithdrawal(requestId);
+            if (result.ok) {
+                const prev = callback_query.message?.text || '';
+                await editTg(currentChatId, msgId, prev + '\n\n✅ <b>ВЫПОЛНЕНО</b>', { inline_keyboard: [] });
+                await answerCallback(callback_query.id, 'Вывод подтверждён');
+            } else {
+                await answerCallback(callback_query.id, result.error || 'Ошибка');
+            }
+        }
+
         if (data.startsWith('done_')) {
             const orderId = parseInt(data.split('_')[1]);
             const { data: orderData } = await supabase.from('orders').update({ status: 'completed' }).eq('id', orderId).select().single();
@@ -1938,6 +2040,7 @@ if (message && message.photo) {
             await answerCallback(callback_query.id, text);
         }
     }
+    
 });
 
 app.listen(PORT, () => {

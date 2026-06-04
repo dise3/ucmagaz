@@ -220,7 +220,36 @@ BEGIN
         ALTER TABLE settings ADD COLUMN prime_plus_markup_rub INTEGER DEFAULT 0;
     END IF;
 END $$;
-
+CREATE TABLE public.settings (
+  id integer NOT NULL DEFAULT 1 CHECK (id = 1),
+  usd_rate double precision DEFAULT 78.0,
+  markup_rub_default double precision DEFAULT 260.0,
+  fee_percent double precision DEFAULT 0.052,
+  pp_price_usd double precision DEFAULT 0.1,
+  pp_markup_rub integer DEFAULT 0,
+  ticket_price_usd double precision DEFAULT 0.01,
+  ticket_markup_rub integer DEFAULT 0,
+  prime_price_usd double precision DEFAULT 0.05,
+  prime_markup_rub integer DEFAULT 0,
+  prime_plus_price_usd double precision DEFAULT 0.08,
+  prime_plus_markup_rub integer DEFAULT 0,
+  usd_rate_store numeric,
+  usd_rate_promo numeric,
+  prime_1m_rub integer DEFAULT 150,
+  prime_3m_rub integer DEFAULT 400,
+  prime_6m_rub integer DEFAULT 750,
+  prime_12m_rub integer DEFAULT 1400,
+  prime_plus_1m_rub integer DEFAULT 250,
+  prime_plus_3m_rub integer DEFAULT 700,
+  prime_plus_6m_rub integer DEFAULT 1300,
+  prime_plus_12m_rub integer DEFAULT 2400,
+  prime_1m_usd double precision DEFAULT 2.99,
+  prime_3m_usd double precision DEFAULT 8.99,
+  prime_6m_usd double precision DEFAULT 16.99,
+  prime_12m_usd double precision DEFAULT 24.99,
+  prime_plus_1m_usd double precision DEFAULT 4.99,
+  prime_plus_3m_usd double precision DEFAULT 14.99,
+  prime_plus_6m_usd double precision DEFAULT 25.99,
 
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_1m_rub INTEGER DEFAULT 150;
 ALTER TABLE settings ADD COLUMN IF NOT EXISTS prime_3m_rub INTEGER DEFAULT 400;

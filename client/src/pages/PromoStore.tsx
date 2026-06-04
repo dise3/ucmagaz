@@ -50,8 +50,23 @@ const PromoStore: React.FC<PromoStoreProps> = ({ onBack }) => {
         fetchProducts();
     }, []);
 
-    const handleSelect = async () => {
-        window.Telegram?.WebApp?.openTelegramLink('https://t.me/KoT9lpa_MANAGER');
+    const buildManagerLink = (amountUc: number) => {
+        const qty = amountUc.toLocaleString('ru-RU').replace(/\u00A0/g, ' ');
+        const text =
+            `Привет, хочу купить «${qty}» UC с ожиданием\n` +
+            `Банк: «УКАЖИ»\n\n` +
+            `В течение 10 минут оплатить смогу, готов(а) ждать реквизиты для оплаты`;
+        return `https://t.me/KoT9lpa_MANAGER?text=${encodeURIComponent(text)}`;
+    };
+
+    const handleSelect = (amountUc: number) => {
+        const url = buildManagerLink(amountUc);
+        const tg = window.Telegram?.WebApp;
+        if (tg?.openTelegramLink) {
+            tg.openTelegramLink(url);
+        } else {
+            window.open(url, '_blank');
+        }
     };
 
     if (loading) {
@@ -94,7 +109,7 @@ const PromoStore: React.FC<PromoStoreProps> = ({ onBack }) => {
                         key={pack.id}
                         onClick={() => {
                             window.Telegram?.WebApp?.HapticFeedback.impactOccurred('medium');
-                            handleSelect();
+                            handleSelect(pack.amount);
                         }}
                         className="relative bg-[#121212]/60 border border-white/10 rounded-[28px] p-3 flex flex-col items-center gap-3 active:scale-95 transition-all cursor-pointer group overflow-hidden"
                     >
