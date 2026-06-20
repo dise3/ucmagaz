@@ -14,7 +14,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
           <span className="text-sm font-bold uppercase tracking-wider">Назад</span>
     </button>
       <div className="bg-[#1c1c1e]/80 backdrop-blur-lg rounded-[35px] p-6">
-        <h2 className="text-2xl font-bold">Магазин Steam</h2>
+        <h2 className="text-2xl font-bold">Пополнение аккаунта стим (РФ/СНГ)</h2>
         <p>В разработке</p>
         {/* Добавьте свою логику для Steam */}
       </div>

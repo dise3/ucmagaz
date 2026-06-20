@@ -69,10 +69,13 @@ const Home: React.FC<HomeProps> = ({ onShopClick }) => {
                         <div className="flex items-center gap-4">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-2xl" />
+                                <div className="relative w-14 h-14 bg-black rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
+                                    <img src="/steam-logo.jpg" alt="Logo" className="w-full h-full object-cover scale-150" />
+                                </div>
                             </div>
                             <div className="flex flex-col">
                                 <h3 className="font-bold text-white text-lg tracking-tight uppercase">
-                                    Пополнение аккаунта стим (РФ/СНГ)
+                                    Steam Store
                                 </h3>
                             </div>
                         </div>
@@ -115,10 +118,13 @@ const Home: React.FC<HomeProps> = ({ onShopClick }) => {
                         <div className="flex items-center gap-4">
                             <div className="relative">
                                 <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-2xl" />
+                                <div className="relative w-14 h-14 bg-black rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
+                                    <img src="/ps-logo.jpg" alt="Logo" className="w-full h-full object-cover scale-150" />
+                                </div>
                             </div>
                             <div className="flex flex-col">
                                 <h3 className="font-bold text-white text-lg tracking-tight uppercase">
-                                    Пополнение PS
+                                    PS Store
                                 </h3>
                             </div>
                         </div>
