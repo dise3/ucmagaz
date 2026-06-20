@@ -7,6 +7,7 @@ import Checkout from "./pages/Checkout";
 import Prime from "./pages/PPandBilets"; 
 import PromoStore from "./pages/PromoStore";
 import Skins from "./pages/Skins";
+import Steam from "./pages/Steam";
 
 declare global {
   interface Window {
@@ -19,7 +20,7 @@ declare global {
 function App() {
   useSetup();
   const [onShop, setOnShop] = useState(false);
-  const [page, setPage] = useState<"store" | "promo" | "checkout" | "prime" | "skins">("store");
+  const [page, setPage] = useState<"store" | "promo" | "checkout" | "prime" | "skins" | "steam" | "ps">("store");
   const [selectedPack, setSelectedPack] = useState<any>(null);
 
   const handlePackSelect = (pack: any) => {
@@ -44,7 +45,11 @@ function App() {
       <main className="relative z-10 h-full overflow-y-auto">
         <div className={`px-5 pt-4 ${page === "checkout" ? "pb-10" : "pb-32"}`}>
           {!onShop ? (
-            <Home onShopClick={() => { setOnShop(true); setPage("store"); }} />
+            <Home onShopClick={(target: 'store' | 'steam' | 'ps') => {
+              setOnShop(true)
+              setPage(target)
+            }
+            } />
           ) : (
             <>
               {page === "store" && (
@@ -62,12 +67,15 @@ function App() {
               {page === "checkout" && (
                 <Checkout pack={selectedPack} onBack={() => setPage(selectedPack?.is_code ? "promo" : "store")} />
               )}
+              {page === 'steam' && (
+                <Steam onBack={handleBackToHome} />
+              )}
             </>
           )}
         </div>
       </main>
 
-      {page !== "checkout" && (
+      {page !== "checkout" && page !=='steam' && page !=='ps' &&  (
         <Navigation 
           activeTab={
             !onShop ? "home" : 
@@ -82,7 +90,7 @@ function App() {
             } else {
               setOnShop(true);
               if (tabId === "uc") setPage("store");
-              if (tabId === "promo") setPage("promo"); // Теперь страница промокодов активна
+              if (tabId === "promo") setPage("promo");
               if (tabId === "pp") setPage("prime");
               if (tabId === "car") setPage("skins");
             }
