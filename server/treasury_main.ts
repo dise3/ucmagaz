@@ -202,12 +202,20 @@ export async function getChildTreasurySummary() {
     if (!base) return { ok: false as const, error: 'CHILD_STORE_API_URL не задан' };
     if (!TREASURY_API_SECRET) return { ok: false as const, error: 'TREASURY_API_SECRET не задан' };
 
+    const url = `${base}/api/treasury/summary`;
     try {
-        const res = await axios.get(`${base}/api/treasury/summary`, { headers: childApiHeaders() });
+        const res = await axios.get(url, { headers: childApiHeaders() });
         return { ok: true as const, summary: mapChildSummary(res.data) };
     } catch (e: any) {
+        const status = e.response?.status;
+        if (status === 404) {
+            return {
+                ok: false as const,
+                error: `404: нет GET /api/treasury/summary (${url}). Настройте API на дочернем сервере.`,
+            };
+        }
         const msg = e.response?.data?.error || e.message || 'Ошибка API дочернего';
-        return { ok: false as const, error: msg };
+        return { ok: false as const, error: status ? `[${status}] ${msg}` : msg };
     }
 }
 
@@ -240,12 +248,9 @@ export async function convertChildRubToUsdt(rateRubPerUsdt: number) {
         return { ok: false as const, error: 'Некорректный курс' };
     }
 
+    const url = `${base}/api/treasury/convert`;
     try {
-        const res = await axios.post(
-            `${base}/api/treasury/convert`,
-            { rate: rateRubPerUsdt },
-            { headers: childApiHeaders() }
-        );
+        const res = await axios.post(url, { rate: rateRubPerUsdt }, { headers: childApiHeaders() });
         return res.data as {
             ok: boolean;
             error?: string;
@@ -255,8 +260,18 @@ export async function convertChildRubToUsdt(rateRubPerUsdt: number) {
             newBalanceUsdt?: number;
         };
     } catch (e: any) {
-        const msg = e.response?.data?.error || e.message || 'Ошибка API дочернего';
-        return { ok: false as const, error: msg };
+        const status = e.response?.status;
+        const body = e.response?.data?.error ?? e.response?.data;
+        if (status === 404) {
+            return {
+                ok: false as const,
+                error:
+                    `404: на дочернем нет POST /api/treasury/convert (${url}). ` +
+                    `Добавьте роут по docs/CHILD_STORE_TREASURY_SETUP.md и перезапустите дочерний сервер.`,
+            };
+        }
+        const msg = typeof body === 'string' ? body : body?.error || e.message || 'Ошибка API дочернего';
+        return { ok: false as const, error: status ? `[${status}] ${msg}` : msg };
     }
 }
 

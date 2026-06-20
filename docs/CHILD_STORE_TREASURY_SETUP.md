@@ -212,9 +212,57 @@ if (req.headers['x-treasury-secret'] !== process.env.TREASURY_API_SECRET) {
 | Симптом | Причина |
 |---------|---------|
 | «CHILD_STORE_API_URL не задан» | `.env` на главном |
+| **404 при вводе курса** | на **дочернем** нет `POST /api/treasury/convert` или неверный `CHILD_STORE_API_URL` (см. §7.1) |
 | 403 на treasury API | разные `TREASURY_API_SECRET` |
 | «Нет ₽ за прошлые дни» | все продажи сегодня или не вызывается `recordChildOrderRevenue` |
 | Главный не видит кнопку wdone | заявка не отправлена в `ADMIN_CHAT_ID` главного |
+
+### 7.1 Ошибка 404 «Request failed with status code 404»
+
+Главный при вводе курса вызывает:
+
+```http
+POST {CHILD_STORE_API_URL}/api/treasury/convert
+Header: x-treasury-secret: ...
+Body: { "rate": 95 }
+```
+
+**404 = дочерний сервер ответил «маршрут не найден».**
+
+Проверка с машины, где крутится главный (подставьте URL и секрет):
+
+```bash
+# 1) Сводка (открывается кнопкой «Курс для дочернего»)
+curl -s -H "x-treasury-secret: ВАШ_СЕКРЕТ" \
+  "https://API-ДОЧЕРНЕГО/api/treasury/summary"
+
+# 2) Конвертация (именно здесь обычно 404)
+curl -s -X POST -H "Content-Type: application/json" \
+  -H "x-treasury-secret: ВАШ_СЕКРЕТ" \
+  -d '{"rate":95}' \
+  "https://API-ДОЧЕРНЕГО/api/treasury/convert"
+```
+
+| Результат curl | Что делать |
+|----------------|------------|
+| summary 404 | добавить оба роута на дочерний `server.ts` |
+| summary 200, convert 404 | добавить только `POST /api/treasury/convert` |
+| оба 403 | выровнять `TREASURY_API_SECRET` |
+| оба 200 | перезапустить **главный** pm2 после правки `.env` |
+
+**Частая ошибка в `.env` главного:**
+
+```env
+# ❌ лишний /api — получится .../api/api/treasury/convert → 404
+CHILD_STORE_API_URL=https://shop.ru/api
+
+# ✅ только origin сервера дочернего
+CHILD_STORE_API_URL=https://shop.ru
+```
+
+После добавления роутов: `pm2 restart` (или аналог) **дочернего** сервера.
+
+Готовый блок роутов: `docs/treasury_child.routes.snippet.ts`
 
 ---
 
