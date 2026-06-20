@@ -8,6 +8,7 @@ import Prime from "./pages/PPandBilets";
 import PromoStore from "./pages/PromoStore";
 import Skins from "./pages/Skins";
 import Steam from "./pages/Steam";
+import PlayStation from "./pages/PlayStation" 
 
 declare global {
   interface Window {
@@ -69,6 +70,9 @@ function App() {
               )}
               {page === 'steam' && (
                 <Steam onBack={handleBackToHome} />
+              )}
+              {page === 'ps' && (
+                <PlayStation onBack={handleBackToHome} />
               )}
             </>
           )}
