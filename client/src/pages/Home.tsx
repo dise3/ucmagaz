@@ -22,7 +22,7 @@ const Home: React.FC<HomeProps> = ({ onShopClick }) => {
                             <div className="relative">
                                 <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-2xl" />
                                 <div className="relative w-14 h-14 bg-black rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-                                    <img src="/pubg-logo.jpg" alt="Logo" className="w-full h-full object-cover scale-150" />
+                                    <img src="/pubg-logo.jpg" alt="Logo" className="w-full h-full object-cover" />
                                 </div>
                             </div>
                             <div className="flex flex-col">
@@ -70,7 +70,7 @@ const Home: React.FC<HomeProps> = ({ onShopClick }) => {
                             <div className="relative">
                                 <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-2xl" />
                                 <div className="relative w-14 h-14 bg-black rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-                                    <img src="/steam-logo.jpg" alt="Logo" className="w-full h-full object-cover scale-150" />
+                                    <img src="/steam-logo.jpg" alt="Logo" className="w-full h-full object-cover" />
                                 </div>
                             </div>
                             <div className="flex flex-col">
@@ -119,7 +119,7 @@ const Home: React.FC<HomeProps> = ({ onShopClick }) => {
                             <div className="relative">
                                 <div className="absolute inset-0 bg-blue-500/20 blur-lg rounded-2xl" />
                                 <div className="relative w-14 h-14 bg-black rounded-2xl border border-white/10 flex items-center justify-center overflow-hidden">
-                                    <img src="/ps-logo.jpg" alt="Logo" className="w-full h-full object-cover scale-150" />
+                                    <img src="/ps-logo.jpg" alt="Logo" className="w-full h-full object-cover" />
                                 </div>
                             </div>
                             <div className="flex flex-col">
