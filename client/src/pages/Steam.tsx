@@ -85,7 +85,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
           price: calculateFinalPriceRub(),
           uid: login,
           title: `Steam пополнение`,
-          image: '/steam-icon.png'
+          image: '/steam-logo.jpg'
         }} 
       />
     );

@@ -102,7 +102,7 @@ interface CheckoutProps {
 
 const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   const [paymentMethod, setPaymentMethod] = useState<'sbp' | 'card'>('sbp');
-  const [uid, setUid] = useState('');
+  const [uid, setUid] = useState(pack.uid || '');
   const [username, setUsername] = useState('');
   const [showHelp, setShowHelp] = useState(false);
   const [showUsernameHelp, setShowUsernameHelp] = useState(false);
@@ -307,7 +307,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
             {pack.type === 'steam_topup' ? (
                 <div className="space-y-4 text-center">
                     <p className="text-white/60 text-sm">Введите "Имя аккаунта", которое вы используете при входе в Steam.</p>
-                    <img src="/steam-help.jpg" className="w-full rounded-2xl border border-white/10 shadow-lg" alt="Steam Help" />
+                    <img src="/steam_i.png" className="w-full rounded-2xl border border-white/10 shadow-lg" alt="Steam Help" />
                 </div>
             ) : (
                 <div className="grid grid-cols-2 gap-3">
