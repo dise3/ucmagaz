@@ -276,7 +276,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
             <input 
               value={uid} 
               onChange={(e) => setUid(e.target.value)} 
-              placeholder={pack.type === 'steam_topup' ? "ivan_2005" : "551234567"} 
+              placeholder={pack.type === 'steam_topup' ? "Steam" : "UID"} 
               className="w-full bg-white/5 border-2 border-white/10 rounded-2xl py-5 px-6 text-white font-black text-lg outline-none focus:border-amber-500/50 transition-all shadow-inner" 
             />
           </div>
