@@ -94,6 +94,7 @@ interface CheckoutProps {
     items?: Array<{ id: number; amount: number; price: number; quantity: number }>;
     type?: 'pp' | 'tickets' | 'skin' | 'prime' | 'prime_plus' | 'uc' | 'steam_topup';
     title?: string;
+    uid? : string;
     months?: number;
   };
   onBack: () => void;
