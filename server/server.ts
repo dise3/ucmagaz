@@ -1,7 +1,8 @@
 import dotenv from 'dotenv';
 dotenv.config();
 console.log('dotenv loaded');
-
+import { v4 as uuidv4 } from 'uuid';
+import { nsClient } from './ns_service.ts';
 import express from 'express';
 import { activateSingleCode } from './activator.ts';
 import axios from 'axios';
@@ -418,7 +419,8 @@ const getAdminMainKeyboard = () => ({
         [{ text: "📊 Наценки /list", callback_data: "adm_list" }, { text: "🛒 Управление товарами", callback_data: "admin_manage" }],
         [{ text: "📢 Рассылки", callback_data: "adm_broadcasts" }, { text: "💵 Прибыль", callback_data: "adm_profit" }],
         [{ text: "💱 Курс для дочернего", callback_data: "adm_child_convert" }],
-        [{ text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }]
+        [{ text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }],
+        [{ text: "🎮 Наценка Steam %", callback_data: "adm_steam_markup"}]
     ]
 });
 
@@ -486,6 +488,42 @@ async function addBroadcastUser(chatId: string | number, username?: string, firs
 // --- API РОУТЫ ---
 
 app.get('/', (req, res) => res.send('✅ Server is running'));
+
+app.post('/api/steam/check-user', async (req, res) => {
+    try {
+        const { login } = req.body;
+        
+        if (!login) {
+            return res.status(400).json({ error: 'Логин не указан' });
+        }
+
+        // Адаптация под Python логику:
+        // Python: call("POST", "/api/v2/steam/check_user", json_body={"steam_id": "..."})
+        // Наш JS: call(метод, путь, параметры_запроса, тело_запроса)
+        const resp = await nsClient.call(
+            "POST", 
+            "/api/v2/steam/check_user", 
+            null, // params (Query string) - тут пусто
+            { "steam_id": login.trim() } // jsonBody (BODY) - как в Python примере
+        );
+
+        // В Python примере: resp["accountStatus"]
+        // В JS: resp.accountStatus
+        console.log(`[STEAM CHECK] Логин: ${login}, Результат: ${resp.accountStatus}`);
+
+        res.json({ 
+            valid: resp.accountStatus // возвращаем true или false
+        });
+
+    } catch (e: any) {
+        // Логируем ошибку для отладки
+        console.error('❌ Ошибка API при проверке Steam:', e.response?.data || e.message);
+        
+        // В случае ошибки (например, неверная подпись или сервер NS упал)
+        // возвращаем статус false, чтобы не дать оплатить невалидный логин
+        res.status(200).json({ valid: false, error: 'Технические работы на стороне провайдера' });
+    }
+});
 
 // API эндпоинт для cron активации аккаунтов
 app.post('/api/activate-accounts', async (req, res) => {
@@ -653,9 +691,37 @@ app.get('/api/promo-products', async (req, res) => {
 
 // 4. Создание платежа
 app.post('/api/create-payment', async (req, res) => {
+    console.log("Запрос на оплату пришел:", req.body);
     try {
-        const { uid, amount, price, method_slug, user_chat_id, is_code, type, username } = req.body;
+        const {
+            uid,
+            amount,
+            price,
+            method_slug,
+            user_chat_id,
+            is_code,
+            type,
+            buyer_first_name,
+            buyer_last_name,
+            account_login,
+            account_password,
+            game_nickname,
+        } = req.body;
 
+        if (user_chat_id) {
+            try {
+                await addBroadcastUser(
+                    user_chat_id || 0,
+                    undefined,
+                    buyer_first_name,
+                    buyer_last_name
+                );
+            } catch (err) {
+                console.error("Ошибка при добавлении пользователя в рассылку:", err);
+            }
+        }
+
+        // Вставка в базу данных
         const { data: order, error } = await supabase
             .from('orders')
             .insert([{ 
@@ -663,15 +729,32 @@ app.post('/api/create-payment', async (req, res) => {
                 amount_uc: amount, 
                 price_rub: price, 
                 status: 'pending', 
-                user_chat_id,
+                user_chat_id: user_chat_id || 0,
                 is_code_order: !!is_code, 
-                order_type: type || 'uc' 
+                order_type: type || 'uc',
+                buyer_first_name: buyer_first_name || null,
+                buyer_last_name: buyer_last_name || null,
+                account_login: account_login || null,
+                account_password: account_password || null,
+                game_nickname: game_nickname || null,
             }])
-            .select().single();
+            .select()
+            .single();
         
-        console.log('Order created:', { id: order.id, amount_uc: order.amount_uc, type: order.order_type });
-        
-        if (error) throw error;
+        // 1. СНАЧАЛА проверяем, нет ли ошибки от Supabase
+        if (error) {
+            console.error('Ошибка Supabase при создании заказа:', error);
+            return res.status(400).json({ error: `Ошибка БД: ${error.message}` });
+        }
+
+        // 2. Проверяем, что объект order вообще существует
+        if (!order) {
+            console.error('Заказ не был возвращен из базы данных');
+            return res.status(500).json({ error: 'Не удалось создать запись в базе данных' });
+        }
+
+        // 3. Теперь безопасно логируем
+        console.log('Order created successfully:', { id: order.id, amount_uc: order.amount_uc });
 
         let description = '';
         if (type === 'pp') {
@@ -684,6 +767,12 @@ app.post('/api/create-payment', async (req, res) => {
             description = `Покупка подписки Prime Gaming`;
         } else if (type === 'prime_plus') {
             description = `Покупка подписки Prime Gaming Plus`;
+        } else if (type === 'login') {
+            description = `Пополнение по входу ${amount} UC`;
+        } else if (type === 'steam_topup') {
+            description = `Пополнение Steam (логин: ${uid}) на $${amount}`;
+        } else if (type === 'ps_gift') {
+            description = `Подарочная карта PlayStation (ID товара: ${amount})`;
         } else {
             description = is_code ? `Покупка кода на ${amount} UC` : `Пополнение ${amount} UC для ID: ${uid}`;
         }
@@ -694,19 +783,27 @@ app.post('/api/create-payment', async (req, res) => {
             description: description,
             metadata: { 
                 order_id: order.id,
-                notification_url: `${BACKEND_URL}/api/payment-callback`
-    }
+                notification_url: `${process.env.BACKEND_URL || 'ВАШ_URL'}/api/payment-callback`
+            }
         };
 
+        // Инициализация платежа
         const response = await axios.post('https://codeepay.ru/initiate_payment', paymentData, {
             headers: { 'X-Api-Key': process.env.CODEEPAY_API_KEY }
         });
+
         console.log('✅ Payment response from codeepay:', response.data);
-        await supabase.from('orders').update({ payment_id: response.data.order_id }).eq('id', order.id);
+
+        // Обновляем payment_id в заказе
+        await supabase
+            .from('orders')
+            .update({ payment_id: String(response.data.order_id) })
+            .eq('id', order.id);
+
         res.json({ url: response.data.url, order_id: order.id });
 
-    } catch (e: any) { 
-        console.error('Payment Error:', e.message); 
+    } catch (e : any) { 
+        console.error('Payment Error (General):', e.message); 
         res.status(500).json({ error: e.message }); 
     }
 });
@@ -754,6 +851,95 @@ app.post('/api/payment-callback', async (req, res) => {
             } catch (e) {
                 console.error('[treasury_main] recordOrderRevenue', e);
             }
+
+             if (order.order_type === 'steam_topup' || order.order_type === 'ps_gift') {
+                try {
+                    console.log(`[NS API] Обработка заказа #${order.id} (${order.order_type})`);
+                    
+                    let serviceId: number;
+                    let fields: any[];
+
+                    if (order.order_type === 'steam_topup') {
+                        // --- ЛОГИКА STEAM ---
+                        serviceId = 1; 
+                        fields = [
+                            { key: "account", value: String(order.uid_player).trim() }, // Строка
+                            { key: "amount", value: Number(order.amount_uc) }           // Число (USD)
+                        ];
+                    } else {
+                        // --- ЛОГИКА PLAYSTATION ---
+                        serviceId = Number(order.amount_uc); 
+                        fields = [{ key: "quantity", value: 1 }];
+                    }
+
+                    // ФИКС: Обязательно вызываем функцию со скобками ()
+                    const nsCustomId = uuidv4(); 
+
+                    // 1. Создаем заказ в NS API
+                    await nsClient.call("POST", "/api/v2/create_order", null, {
+                        service_id: serviceId,
+                        custom_id: nsCustomId,
+                        fields: fields
+                    });
+                    
+                    // 2. Оплачиваем заказ (списание баланса NS)
+                    const payResult = await nsClient.call("POST", "/api/v2/pay_order", null, {
+                        custom_id: nsCustomId
+                    });
+
+                    if (payResult.status === 'completed') {
+                        if (order.order_type === 'ps_gift' && payResult.pins && payResult.pins.length > 0) {
+                            const pinCode = payResult.pins[0];
+                            await sendTg(order.user_chat_id, 
+                                `🎁 <b>Ваш код PlayStation готов!</b>\n\n` +
+                                `Код: <code>${pinCode}</code>\n\n` +
+                                `<i>Активируйте его в настройках вашего аккаунта PS Store.</i>`
+                            );
+                        } else {
+                            await sendTg(order.user_chat_id, 
+                                `✅ <b>Steam успешно пополнен!</b>\n\n` +
+                                `Логин: <code>${order.uid_player}</code>\n` +
+                                `Сумма: $${order.amount_uc}`
+                            );
+                        }
+
+                        await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
+                        await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} успешно выдан через NS API.`);
+
+                    } else if (payResult.status === 'in_progress') {
+                        await sendTg(order.user_chat_id, `⏳ Ваш заказ находится в обработке на стороне провайдера. Мы пришлем уведомление сразу после активации.`);
+                    } else {
+                        // Если статус 'insufficient' или другой
+                        throw new Error(`Статус API: ${payResult.status}`);
+                    }
+                    
+                    return; 
+
+                } catch (e: any) {
+                    // Распаковка детальной ошибки
+                    const errorData = e.response?.data;
+                    console.error('❌ ДЕТАЛЬНАЯ ОШИБКА NS API:', JSON.stringify(errorData, null, 2));
+
+                    let errorMessage = 'Неизвестная ошибка';
+                    if (errorData) {
+                        errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
+                    } else {
+                        errorMessage = e.message;
+                    }
+
+                    const username = await getDisplayName(order);
+                    
+                    await sendTg(ADMIN_CHAT_ID, 
+                        `❌ <b>ОШИБКА АВТОВЫДАЧИ #${order.id}</b>\n` +
+                        `Тип: ${order.order_type}\n` +
+                        `Юзер: ${username}\n` +
+                        `Причина: <code>${errorMessage}</code>\n\n` +
+                        `⚠️ <b>ВЫДАЙТЕ ВРУЧНУЮ!</b>`
+                    );
+                    return;
+                }
+            }
+            // --- КОНЕЦ БЛОКА NS API ---
 
             if (order.is_code_order && order.uid_player !== 'MANUAL_ORDER') {
                 const { data: codeEntry } = await supabase
@@ -1098,6 +1284,19 @@ app.post('/api/bot-webhook', async (req, res) => {
                     }
                     return;
                 }
+    if (state.action === 'await_steam_markup') {
+    const val = parseFloat(text.trim());
+    if (!isNaN(val)) {
+        // Делим на 100, чтобы в базе хранить 0.15 вместо 15
+        const decimalMarkup = val / 100;
+        const { error } = await supabase.from('settings').update({ steam_fee_percent: decimalMarkup }).eq('id', 1);
+        await sendTg(chatId, error ? `❌ Ошибка` : `✅ Наценка Steam установлена: ${val}%`, getAdminMainKeyboard());
+    } else {
+        await sendTg(chatId, '❌ Введите число');
+    }
+    adminStates.delete(chatId);
+    return;
+}
             }
 
             // Обработка команд для админа (текстовые команды сохранены для совместимости)
@@ -1697,6 +1896,13 @@ if (message && message.photo) {
             adminStates.set(currentChatId, { action: 'await_ticket_markup' });
             await editTg(currentChatId, msgId, `🎫 Введите маржу билетов в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
         }
+                if (data === 'adm_steam_markup') {
+    adminStates.set(currentChatId, { action: 'await_steam_markup' });
+    await editTg(currentChatId, msgId, `🎮 Введите наценку для Steam в процентах (например, 15):`, { 
+        inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] 
+    });
+}
+        
 
         if (data === 'adm_prime') {
             const { data: s } = await supabase.from('settings').select('*').single();
@@ -2023,6 +2229,7 @@ if (message && message.photo) {
             await answerCallback(callback_query.id, text);
         }
     }
+    
     
 });
 
