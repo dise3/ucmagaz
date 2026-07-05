@@ -167,10 +167,10 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
     // --- ОСТАЛЬНАЯ ЛОГИКА 1 ФАЙЛА ---
     if (pack.type === 'pp') {
       const base = (settings.pp_price_usd * ((pack.amount || 0) / 10000)) * settings.usd_rate + (settings.pp_markup_rub || 0);
-      return calculatePriceWithCommission(Math.ceil(base * (1 + settings.fee_percent)), paymentMethod);
+      return calculatePriceWithCommission(Math.ceil(base), paymentMethod);
     } else if (pack.type === 'tickets') {
       const base = (settings.ticket_price_usd * ((pack.amount || 0) / 100)) * settings.usd_rate + (settings.ticket_markup_rub || 0);
-      return calculatePriceWithCommission(Math.ceil(base * (1 + settings.fee_percent)), paymentMethod);
+      return calculatePriceWithCommission(Math.ceil(base), paymentMethod);
     } else if (pack.type === 'prime' || pack.type === 'prime_plus') {
       return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     } else if (pack.type === 'skin') {
