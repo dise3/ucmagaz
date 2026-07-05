@@ -164,7 +164,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       return Math.floor(baseRub * (1 + commission) + 1);
     }
 
-    // --- ОСТАЛЬНАЯ ЛОГИКА 1 ФАЙЛА ---
+    // ОСТАЛЬНАЯ ЛОГИКА
     if (pack.type === 'pp') {
       const base = (settings.pp_price_usd * ((pack.amount || 0) / 10000)) * settings.usd_rate + (settings.pp_markup_rub || 0);
       return calculatePriceWithCommission(Math.ceil(base), paymentMethod);
