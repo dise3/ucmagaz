@@ -178,7 +178,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
     } else if (isMultiCode) {
       return items.reduce((sum: number, item: any) => sum + (getPriceForMethod(item.price, paymentMethod) * item.quantity), 0);
     } else {
-      return pack.price || 0; 
+      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
     }
   };
 
