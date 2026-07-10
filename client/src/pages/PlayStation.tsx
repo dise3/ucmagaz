@@ -124,14 +124,15 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
         {cards[currency].map(card => {
           const hasError = imageErrors[card.image];
           const commission = 0.0485;
-          const finalPrice = card.price + (markups[card.id] || 0) * (1 * commission);
+          const baseWithMarkup = card.price + (markups[card.id] || 0);
+          const displayPrice = Math.floor(baseWithMarkup * (1 + commission));
 
           return (
             <button
               key={card.id}
               onClick={() => {
                 // Передаём в Checkout карточку с обновлённой ценой
-                setSelectedCard({ ...card, price: finalPrice });
+                setSelectedCard({ ...card, price: baseWithMarkup });
               }}
               className="bg-white/5 backdrop-blur-sm border border-amber-500/30 rounded-[28px] p-4 active:scale-[0.97] transition-all hover:border-amber-400/70 hover:shadow-lg hover:shadow-amber-600/20 flex flex-col items-center group"
             >
@@ -167,7 +168,7 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
                   Код активации
                 </div>
                 <div className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">
-                  {finalPrice} ₽
+                  {displayPrice} ₽
                 </div>
                 {/* Показываем наценку, если она есть */}
                 {markups[card.id] > 0 && (

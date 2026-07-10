@@ -166,7 +166,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
 
     if (pack.type === 'ps_gift') {
       const commission = paymentMethod === 'sbp' ? COMMISSION_SBP : COMMISSION_CARD;
-      return calculatePriceWithCommission(pack.price || 0, paymentMethod);
+      return Math.floor((pack.price || 0) * (1 + commission) + 1);
     }
 
     // ОСТАЛЬНАЯ ЛОГИКА
