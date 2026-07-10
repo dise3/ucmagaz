@@ -124,7 +124,7 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
         {cards[currency].map(card => {
           const hasError = imageErrors[card.image];
           const commission = 0.0485;
-          const finalPrice = card.price + (markups[card.id] || 0) + (1 * commission);
+          const finalPrice = card.price + (markups[card.id] || 0) * (1 * commission);
 
           return (
             <button
