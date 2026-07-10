@@ -123,8 +123,8 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
       <div className="grid grid-cols-2 gap-3">
         {cards[currency].map(card => {
           const hasError = imageErrors[card.image];
-          // Вычисляем цену с наценкой
-          const finalPrice = card.price + (markups[card.id] || 0);
+          const commission = 0.0485;
+          const finalPrice = card.price + (markups[card.id] || 0) + (1 * commission);
 
           return (
             <button
