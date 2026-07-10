@@ -92,7 +92,7 @@ interface CheckoutProps {
     is_skin?: boolean;
     is_prime?: boolean;
     items?: Array<{ id: number; amount: number; price: number; quantity: number }>;
-    type?: 'pp' | 'tickets' | 'skin' | 'prime' | 'prime_plus' | 'uc' | 'steam_topup';
+    type?: 'pp' | 'tickets' | 'skin' | 'prime' | 'prime_plus' | 'uc' | 'steam_topup' | "ps_gift";
     title?: string;
     uid? : string;
     months?: number;
@@ -162,6 +162,11 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
       const baseRub = (pack.amount || 0) * rate * (1 + steamFee);
       const commission = paymentMethod === 'sbp' ? COMMISSION_SBP : COMMISSION_CARD;
       return Math.floor(baseRub * (1 + commission) + 1);
+    }
+
+    if (pack.type === 'ps_gift') {
+      const commission = paymentMethod === 'sbp' ? COMMISSION_SBP : COMMISSION_CARD;
+      return Math.floor((pack.price || 0) * (1 + commission));
     }
 
     // ОСТАЛЬНАЯ ЛОГИКА
@@ -309,6 +314,10 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
                     <p className="text-white/60 text-sm">Введите "Имя аккаунта", которое вы используете при входе в Steam.</p>
                     <img src="/steam_i.png" className="w-full rounded-2xl border border-white/10 shadow-lg" alt="Steam Help" />
                 </div>
+            ) : pack.type === 'ps_gift' ? (
+                <div className="space-y-4 text-center">
+                    <p className="text-white/60 text-sm">Введите ваш PSN ID (игровой ник в PlayStation Network).</p>
+                </div>
             ) : (
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-3 text-center">
@@ -357,7 +366,9 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
         <div className="space-y-3">
           <div className="flex justify-between items-end px-1">
             <label className="text-[12px] font-black text-white uppercase tracking-[0.2em]">
-                {pack.type === 'steam_topup' ? 'Логин Steam' : 'PUBG UID'}
+                {pack.type === 'steam_topup' && 'Логин Steam'}
+                {pack.type === 'ps_gift' && 'PSN ID'}
+                {pack.type !== 'steam_topup' && pack.type !== 'ps_gift' && 'UID для зачисления'}
             </label>
             <button onClick={() => { triggerHapticFeedback('light'); setShowHelp(true); }} className="flex items-center gap-1.5 text-[12px] text-amber-400 font-black uppercase tracking-wider">
               <span>Где найти?</span>
@@ -369,7 +380,9 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
               value={uid}
               onChange={(e) => setUid(e.target.value)}
               className="w-full bg-white/15 border-2 border-white/20 rounded-2xl py-4 px-6 text-white font-black text-lg outline-none focus:border-amber-500/60 transition-all" 
-              placeholder={pack.type === 'steam_topup' ? "Введите логин" : "Введите UID"} 
+              placeholder={pack.type === 'steam_topup' ? "Введите логин" :
+                          pack.type === 'ps_gift' ? "Введите PSN ID" : "Введите UID"
+              } 
               disabled={isLoading}
             />
           </div>

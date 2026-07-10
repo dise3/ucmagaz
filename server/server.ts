@@ -56,6 +56,7 @@ type AdminState = {
     title?: string;
     price?: number;
     message?: string;
+    serviceId?: number;
 };
 const adminStates = new Map<string, AdminState>();
 
@@ -420,7 +421,7 @@ const getAdminMainKeyboard = () => ({
         [{ text: "📢 Рассылки", callback_data: "adm_broadcasts" }, { text: "💵 Прибыль", callback_data: "adm_profit" }],
         [{ text: "💱 Курс для дочернего", callback_data: "adm_child_convert" }],
         [{ text: "🔄 Активировать аккаунты", callback_data: "adm_activate_accounts" }],
-        [{ text: "🎮 Наценка Steam %", callback_data: "adm_steam_markup"}]
+        [{ text: "🎮 Наценка Steam %", callback_data: "adm_steam_markup"}, {text: "🎮Наценка PSN", callback_data: "adm_psgift_markup"}]
     ]
 });
 
@@ -852,7 +853,7 @@ app.post('/api/payment-callback', async (req, res) => {
                 console.error('[treasury_main] recordOrderRevenue', e);
             }
 
-             if (order.order_type === 'steam_topup' || order.order_type === 'ps_gift') {
+            if (order.order_type === 'steam_topup' || order.order_type === 'ps_gift') {
                 try {
                     console.log(`[NS API] Обработка заказа #${order.id} (${order.order_type})`);
                     
@@ -904,7 +905,11 @@ app.post('/api/payment-callback', async (req, res) => {
                         }
 
                         await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
-                        await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} успешно выдан через NS API.`);
+                        if (order.order_type === 'ps_gift') {
+                            await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} PlayStation успешно выполнен. Код выдан пользователю.`);
+                        } else {
+                            await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} Steam успешно выполнен. Пополнение прошло на ${order.amount_uc}.`);
+                        }
 
                     } else if (payResult.status === 'in_progress') {
                         await sendTg(order.user_chat_id, `⏳ Ваш заказ находится в обработке на стороне провайдера. Мы пришлем уведомление сразу после активации.`);
@@ -1296,7 +1301,23 @@ app.post('/api/bot-webhook', async (req, res) => {
     }
     adminStates.delete(chatId);
     return;
+    }
+    if (state.action === 'await_ps_markup' && state.serviceId) {
+    const val = parseInt(text.trim());
+    if (!isNaN(val)) {
+        const columnName = `ps_markup_${state.serviceId}`;
+        const { error } = await supabase
+            .from('settings')
+            .update({ [columnName]: val })
+            .eq('id', 1);
+        await sendTg(chatId, error ? `❌ Ошибка` : `✅ Наценка для товара ${state.serviceId} установлена: +${val}₽`, getAdminMainKeyboard());
+    } else {
+        await sendTg(chatId, '❌ Введите число');
+    }
+    adminStates.delete(chatId);
+    return;
 }
+
             }
 
             // Обработка команд для админа (текстовые команды сохранены для совместимости)
@@ -1743,6 +1764,16 @@ if (message && message.photo) {
             };
             await editTg(currentChatId, msgId, text + `Promo: ${promoRate} руб/$`, keyboard);
         }
+        if (data.startsWith('ps_markup_')) {
+            const serviceId = parseInt(data.replace('ps_markup_', ''));
+            if (!isNaN(serviceId)) {
+                adminStates.set(currentChatId, { action: 'await_ps_markup', serviceId });
+                await editTg(currentChatId, msgId, `🎮 Введите наценку (₽) для товара ${serviceId}:`, { 
+                    inline_keyboard: [[{ text: '❌ Отмена', callback_data: 'adm_psgift_markup' }]] 
+                });
+            }
+        }
+
 
         if (data.startsWith('adm_rate_promo_')) {
             const rate = parseFloat(data.replace('adm_rate_promo_', ''));
@@ -1896,13 +1927,37 @@ if (message && message.photo) {
             adminStates.set(currentChatId, { action: 'await_ticket_markup' });
             await editTg(currentChatId, msgId, `🎫 Введите маржу билетов в ₽:`, { inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] });
         }
-                if (data === 'adm_steam_markup') {
-    adminStates.set(currentChatId, { action: 'await_steam_markup' });
-    await editTg(currentChatId, msgId, `🎮 Введите наценку для Steam в процентах (например, 15):`, { 
+        if (data === 'adm_steam_markup') {
+        adminStates.set(currentChatId, { action: 'await_steam_markup' });
+        await editTg(currentChatId, msgId, `🎮 Введите наценку для Steam в процентах (например, 15):`, { 
         inline_keyboard: [[{ text: "❌ Отмена", callback_data: "adm_back" }]] 
     });
-}
-        
+        }
+        if (data === 'adm_psgift_markup') {
+            const {data: settings} = await supabase.from('settings').select('*').single();
+            const products = [
+                { id: 72, label: '250 TRY' },
+                { id: 73, label: '500 TRY' },
+                { id: 75, label: '1000 TRY' },
+                { id: 78, label: '2500 TRY' },
+                { id: 117, label: '$10 USA' },
+                { id: 118, label: '$25 USA' },
+                { id: 119, label: '$50 USA' },
+                { id: 121, label: '$100 USA' },
+                { id: 106, label: '50 PLN' },
+                { id: 107, label: '100 PLN' },
+            ];
+            let text = '🎮 <b>Наценки PSN</b>\n\n';
+            const buttons = [];
+            for (const p of products) {
+                const key = `ps_markup_${p.id}`;
+                const markup = settings?.[key] ?? 0;
+                text += `${p.label} — +${markup}₽\n`;
+                buttons.push([{ text: `Изменить ${p.label}`, callback_data: `ps_markup_${p.id}` }]);
+            }
+            buttons.push([{ text: '🔙 Назад', callback_data: 'adm_back' }]);
+            await editTg(currentChatId, msgId, text, { inline_keyboard: buttons });
+        }
 
         if (data === 'adm_prime') {
             const { data: s } = await supabase.from('settings').select('*').single();
