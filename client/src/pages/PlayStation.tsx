@@ -170,12 +170,7 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
                 <div className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">
                   {displayPrice} ₽
                 </div>
-                {/* Показываем наценку, если она есть */}
-                {markups[card.id] > 0 && (
-                  <div className="text-[10px] text-amber-500/60 mt-0.5">
-                    +{markups[card.id]} ₽ наценка
-                  </div>
-                )}
+                )
               </div>
             </button>
           );
