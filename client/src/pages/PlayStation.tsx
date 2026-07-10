@@ -170,7 +170,6 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
                 <div className="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-amber-600">
                   {displayPrice} ₽
                 </div>
-                )
               </div>
             </button>
           );
