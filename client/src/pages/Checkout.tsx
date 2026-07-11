@@ -201,7 +201,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
     setIsLoading(true);
     setError('');
     
-    if (!pack.is_code && !uid.trim()) {
+    if (!pack.is_code && pack.type !== 'ps_gift' && !uid.trim()) {
       setError(pack.type === 'steam_topup' ? 'Пожалуйста, введите логин Steam' : 'Пожалуйста, введите UID');
       setIsLoading(false);
       return;
@@ -314,11 +314,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
                     <p className="text-white/60 text-sm">Введите "Имя аккаунта", которое вы используете при входе в Steam.</p>
                     <img src="/steam_i.png" className="w-full rounded-2xl border border-white/10 shadow-lg" alt="Steam Help" />
                 </div>
-            ) : pack.type === 'ps_gift' ? (
-                <div className="space-y-4 text-center">
-                    <p className="text-white/60 text-sm">Введите ваш PSN ID (игровой ник в PlayStation Network).</p>
-                </div>
-            ) : (
+            ) : (           
                 <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-3 text-center">
                         <p className="text-[10px] font-bold text-white/40 uppercase tracking-wider">1. На аватар</p>
@@ -362,13 +358,12 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
         </div>
       </div>
 
-      {!pack.is_code && (
+      {!pack.is_code && pack.type !== 'ps_gift' && (
         <div className="space-y-3">
           <div className="flex justify-between items-end px-1">
             <label className="text-[12px] font-black text-white uppercase tracking-[0.2em]">
                 {pack.type === 'steam_topup' && 'Логин Steam'}
-                {pack.type === 'ps_gift' && 'PSN ID'}
-                {pack.type !== 'steam_topup' && pack.type !== 'ps_gift' && 'UID для зачисления'}
+                {pack.type !== 'steam_topup' && 'UID для зачисления'}
             </label>
             <button onClick={() => { triggerHapticFeedback('light'); setShowHelp(true); }} className="flex items-center gap-1.5 text-[12px] text-amber-400 font-black uppercase tracking-wider">
               <span>Где найти?</span>
@@ -381,7 +376,7 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
               onChange={(e) => setUid(e.target.value)}
               className="w-full bg-white/15 border-2 border-white/20 rounded-2xl py-4 px-6 text-white font-black text-lg outline-none focus:border-amber-500/60 transition-all" 
               placeholder={pack.type === 'steam_topup' ? "Введите логин" :
-                          pack.type === 'ps_gift' ? "Введите PSN ID" : "Введите UID"
+                                                                          "Введите UID"
               } 
               disabled={isLoading}
             />
