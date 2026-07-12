@@ -67,7 +67,7 @@ const PlayStation = ({ onBack }: { onBack: () => void }) => {
           amount: selectedCard.id,
           price: selectedCard.price,
           title: `PS Store ${selectedCard.label}`,
-          image: '/ps-icon.png'
+          image: selectedCard.image,
         }}
       />
     );
