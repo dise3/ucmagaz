@@ -1880,14 +1880,38 @@ app.post('/api/bot-webhook', async (req, res) => {
             };
             console.log('text length:', text.length);
             console.log('keyboard:', JSON.stringify(keyboard, null, 2));
-            // Удаляем старое
-await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-    chat_id: currentChatId,
-    message_id: msgId
-}).catch(() => {});
+            console.log('📤 Начинаем обновление сообщения...');
 
-// Отправляем новое
-await sendTg(currentChatId, text, keyboard);
+try {
+    // Попытка отредактировать (если используете editTg)
+    await editTg(currentChatId, msgId, text, keyboard);
+    console.log('✅ Сообщение обновлено через editTg');
+} catch (editErr) {
+    const errorMessage = editErr instanceof Error ? editErr.message : String(editErr);
+    console.error('❌ editTg не сработал:', errorMessage);
+    
+    // Fallback: удалить и отправить новое
+    console.log('🗑 Удаляем старое сообщение...');
+    try {
+        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+            chat_id: currentChatId,
+            message_id: msgId
+        });
+        console.log('✅ Старое сообщение удалено');
+    } catch (delErr) {
+        const delMessage = delErr instanceof Error ? delErr.message : String(delErr);
+        console.error('❌ Ошибка удаления:', delMessage);
+    }
+
+    console.log('📤 Отправляем новое сообщение...');
+    try {
+        await sendTg(currentChatId, text, keyboard);
+        console.log('✅ Новое сообщение отправлено');
+    } catch (sendErr) {
+        const sendMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
+        console.error('❌ Ошибка отправки нового сообщения:', sendMessage);
+    }
+}
         }
 
         if (data.startsWith('adm_код_batch_')) {
