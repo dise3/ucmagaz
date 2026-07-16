@@ -1863,6 +1863,8 @@ app.post('/api/bot-webhook', async (req, res) => {
                 .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`)
                 .join('\n');
             const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
+            console.log('📦 Весь stock (raw):', stock);
+            console.log('📦 grouped после обработки:', grouped);
             const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
             console.log('=== ADM_CODES DIAGNOSTIC ===');
             console.log('baseDenoms (raw):', baseDenoms);
