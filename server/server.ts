@@ -1878,6 +1878,8 @@ app.post('/api/bot-webhook', async (req, res) => {
                     [{ text: "🔙 Назад", callback_data: "adm_back" }]
                 ]
             };
+            console.log('text length:', text.length);
+            console.log('keyboard:', JSON.stringify(keyboard, null, 2));
             await editTg(currentChatId, msgId, text, keyboard);
         }
 
