@@ -1868,6 +1868,7 @@ app.post('/api/bot-webhook', async (req, res) => {
             console.log('baseDenoms (raw):', baseDenoms);
             console.log('baseDenoms length:', baseDenoms?.length);
             const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
+            console.log('ucList:', ucList);
             const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
             const keyboard = {
                 inline_keyboard: [
