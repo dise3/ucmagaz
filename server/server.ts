@@ -1880,7 +1880,19 @@ app.post('/api/bot-webhook', async (req, res) => {
             };
             console.log('text length:', text.length);
             console.log('keyboard:', JSON.stringify(keyboard, null, 2));
-            await editTg(currentChatId, msgId, text, keyboard);
+            try {
+    // Сначала пробуем отредактировать (на случай, если сообщение без фото)
+    await editTg(currentChatId, msgId, text, keyboard);
+} catch (err) {
+    console.error('❌ editTg failed, fallback to delete+send:', err.message);
+    // Удаляем старое сообщение
+    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+        chat_id: currentChatId,
+        message_id: msgId
+    }).catch(() => {});
+    // Отправляем новое
+    await sendTg(currentChatId, text, keyboard);
+}
         }
 
         if (data.startsWith('adm_код_batch_')) {
