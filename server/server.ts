@@ -1858,7 +1858,7 @@ const { data: test8100, error: err8100 } = await supabase
     .select('value, is_used')
     .eq('value', 8100);
 console.log('🔍 Тест для 8100:', test8100?.length || 0, 'записей', err8100 || '');
-            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').order('value');
+            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').eq('is_used', false).order('value');
             const grouped: Record<number, { normal: number; used: number }> = {};
             stock?.forEach((item: any) => {
                 if (!grouped[item.value]) {
