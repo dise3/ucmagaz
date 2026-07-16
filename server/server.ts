@@ -1874,7 +1874,7 @@ console.log('🔍 Тест для 8100:', test8100?.length || 0, 'записей
 console.log('📦 Уникальные value в stock:', [...new Set(stock?.map(s => s.value))]);
             const lines = Object.entries(grouped)
                 .sort(([a], [b]) => Number(a) - Number(b))
-                .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`)
+                .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт.`)
                 .join('\n');
             const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
             const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
