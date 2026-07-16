@@ -1846,7 +1846,7 @@ app.post('/api/bot-webhook', async (req, res) => {
 
         if (data === 'adm_codes') {
             adminStates.delete(currentChatId);
-            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').order('value');
+            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').order('value').limit(10000);
             const grouped: Record<number, { normal: number; used: number }> = {};
             stock?.forEach((item: any) => {
                 if (!grouped[item.value]) {
