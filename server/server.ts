@@ -1844,71 +1844,59 @@ app.post('/api/bot-webhook', async (req, res) => {
             await editTg(currentChatId, msgId, text, { inline_keyboard: rows });
         }
 
-if (data === 'adm_codes') {
-    adminStates.delete(currentChatId);
+        if (data === 'adm_codes') {
+            adminStates.delete(currentChatId);
+            // Прямой тест для 3850 и 8100
+const { data: test3850, error: err3850 } = await supabase
+    .from('codes_stock')
+    .select('value, is_used')
+    .eq('value', 3850);
+console.log('🔍 Тест для 3850:', test3850?.length || 0, 'записей', err3850 || '');
 
-    // 1. Получаем список номиналов из base_denominations
-    const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
-    console.log('=== ADM_CODES DIAGNOSTIC ===');
-    console.log('baseDenoms (raw):', baseDenoms);
-    console.log('baseDenoms length:', baseDenoms?.length);
-    const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
-    console.log('ucList:', ucList);
-
-    // 2. Запрашиваем ТОЛЬКО нужные номиналы (теперь ucList определён)
-    const { data: stock } = await supabase
-        .from('codes_stock')
-        .select('value, is_used')
-        .in('value', ucList)   // ✅ теперь ucList существует
-        .order('value');
-
-    console.log('📦 Количество записей в stock:', stock?.length);
-    console.log('📦 Уникальные value в stock:', [...new Set(stock?.map(s => s.value))]);
-
-    // 3. Группируем остатки
-    const grouped: Record<number, { normal: number; used: number }> = {};
-    stock?.forEach((item: any) => {
-        const uc = Number(item.value); // приводим к числу на всякий случай
-        if (!grouped[uc]) {
-            grouped[uc] = { normal: 0, used: 0 };
+const { data: test8100, error: err8100 } = await supabase
+    .from('codes_stock')
+    .select('value, is_used')
+    .eq('value', 8100);
+console.log('🔍 Тест для 8100:', test8100?.length || 0, 'записей', err8100 || '');
+            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').in('value',ucList).order('value');
+            const grouped: Record<number, { normal: number; used: number }> = {};
+            stock?.forEach((item: any) => {
+                if (!grouped[item.value]) {
+                    grouped[item.value] = { normal: 0, used: 0 };
+                }
+                if (item.is_used) {
+                    grouped[item.value].used++;
+                } else {
+                    grouped[item.value].normal++;
+                }
+            });
+            console.log('📦 Количество записей в stock:', stock?.length);
+console.log('📦 Уникальные value в stock:', [...new Set(stock?.map(s => s.value))]);
+            const lines = Object.entries(grouped)
+                .sort(([a], [b]) => Number(a) - Number(b))
+                .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`)
+                .join('\n');
+            const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
+            const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
+            console.log('=== ADM_CODES DIAGNOSTIC ===');
+            console.log('baseDenoms (raw):', baseDenoms);
+            console.log('baseDenoms length:', baseDenoms?.length);
+            const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
+            console.log('ucList:', ucList);
+            
+            const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
+            const keyboard = {
+                inline_keyboard: [
+                    ucButtons.slice(0, 4),
+                    ucButtons.slice(4, 8),
+                    [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
+                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
+                ]
+            };
+            console.log('text length:', text.length);
+            console.log('keyboard:', JSON.stringify(keyboard, null, 2));
+            await editTg(currentChatId, msgId, text, keyboard);
         }
-        if (item.is_used) {
-            grouped[uc].used++;
-        } else {
-            grouped[uc].normal++;
-        }
-    });
-
-    // 4. Формируем строки для ВСЕХ номиналов из ucList
-    const groupedMap = new Map(
-        Object.entries(grouped).map(([uc, data]) => [Number(uc), data])
-    );
-    const lines = ucList
-        .map(uc => {
-            const data = groupedMap.get(uc);
-            const normal = data?.normal ?? 0;
-            const used = data?.used ?? 0;
-            return `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`;
-        })
-        .join('\n');
-
-    const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
-
-    // 5. Кнопки (они уже есть)
-    const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
-    const keyboard = {
-        inline_keyboard: [
-            ucButtons.slice(0, 4),
-            ucButtons.slice(4, 8),
-            [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
-            [{ text: "🔙 Назад", callback_data: "adm_back" }]
-        ]
-    };
-    console.log('text length:', text.length);
-    console.log('keyboard:', JSON.stringify(keyboard, null, 2));
-
-    await editTg(currentChatId, msgId, text, keyboard);
-}
 
         if (data.startsWith('adm_код_batch_')) {
             const uc = parseInt(data.replace('adm_код_batch_', ''));
