@@ -1844,87 +1844,62 @@ app.post('/api/bot-webhook', async (req, res) => {
             await editTg(currentChatId, msgId, text, { inline_keyboard: rows });
         }
 
-        if (data === 'adm_codes') {
-            adminStates.delete(currentChatId);
-            const { data: stock } = await supabase.from('codes_stock').select('value, is_used').order('value');
-            const grouped: Record<number, { normal: number; used: number }> = {};
-            stock?.forEach((item: any) => {
-                if (!grouped[item.value]) {
-                    grouped[item.value] = { normal: 0, used: 0 };
-                }
-                if (item.is_used) {
-                    grouped[item.value].used++;
-                } else {
-                    grouped[item.value].normal++;
-                }
-            });
-            const lines = Object.entries(grouped)
-                .sort(([a], [b]) => Number(a) - Number(b))
-                .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`)
-                .join('\n');
-            const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
-            console.log('📦 Весь stock (raw):', stock);
-            console.log('📦 grouped после обработки:', grouped);
-            const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
-            console.log('=== ADM_CODES DIAGNOSTIC ===');
-            console.log('baseDenoms (raw):', baseDenoms);
-            console.log('baseDenoms length:', baseDenoms?.length);
-            const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
-            console.log('ucList:', ucList);
-            const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
-            const keyboard = {
-                inline_keyboard: [
-                    ucButtons.slice(0, 4),
-                    ucButtons.slice(4, 8),
-                    [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
-                    [{ text: "🔙 Назад", callback_data: "adm_back" }]
-                ]
-            };
-            console.log('text length:', text.length);
-            console.log('keyboard:', JSON.stringify(keyboard, null, 2));
-            // ---------- НАЧАЛО БЛОКА ОТПРАВКИ ----------
-console.log('📤 Начинаем отправку/обновление...');
+if (data === 'adm_codes') {
+    adminStates.delete(currentChatId);
 
-// Пытаемся отправить новое сообщение через axios напрямую (без удаления)
-try {
-    console.log('📤 Отправляем новое сообщение через axios...');
-    const response = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-        chat_id: currentChatId,
-        text: text,
-        parse_mode: 'HTML',
-        reply_markup: keyboard
-    });
-    console.log('✅ Ответ Telegram:', response.data);
-    console.log('✅ Сообщение успешно отправлено, message_id:', response.data.result.message_id);
-} catch (err) {
-    // Приводим err к типу Error для безопасного доступа к message
-    const error = err instanceof Error ? err : new Error(String(err));
-    console.error('❌ Ошибка при отправке через axios:', error.message);
-    if (error.stack) console.error('📚 Stack:', error.stack);
-    
-    // Дополнительно выводим данные ответа, если есть
-    if (err && typeof err === 'object' && 'response' in err) {
-        const responseErr = err as { response?: { data?: unknown } };
-        console.error('📦 Детали ответа:', responseErr.response?.data);
-    }
-}
-
-// Старое сообщение можно удалить, но для теста пока не удаляем, чтобы увидеть новое
-// Если хотите удалить – раскомментируйте:
-/*
-try {
-    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-        chat_id: currentChatId,
-        message_id: msgId
-    });
-    console.log('✅ Старое сообщение удалено');
-} catch (delErr) {
-    const delError = delErr instanceof Error ? delErr : new Error(String(delErr));
-    console.error('❌ Ошибка удаления:', delError.message);
-}
-*/
-// ---------- КОНЕЦ БЛОКА ОТПРАВКИ ----------
+    // 1. Получаем остатки кодов
+    const { data: stock } = await supabase.from('codes_stock').select('value, is_used').order('value');
+    const grouped: Record<number, { normal: number; used: number }> = {};
+    stock?.forEach((item: any) => {
+        const uc = Number(item.value); // приводим к числу на всякий случай
+        if (!grouped[uc]) {
+            grouped[uc] = { normal: 0, used: 0 };
         }
+        if (item.is_used) {
+            grouped[uc].used++;
+        } else {
+            grouped[uc].normal++;
+        }
+    });
+
+    // 2. Получаем список всех номиналов из base_denominations
+    const { data: baseDenoms } = await supabase.from('base_denominations').select('amount_uc').order('amount_uc');
+    console.log('=== ADM_CODES DIAGNOSTIC ===');
+    console.log('baseDenoms (raw):', baseDenoms);
+    console.log('baseDenoms length:', baseDenoms?.length);
+    const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
+    console.log('ucList:', ucList);
+
+    // 3. Формируем строки для ВСЕХ номиналов из ucList
+    const groupedMap = new Map(
+        Object.entries(grouped).map(([uc, data]) => [Number(uc), data])
+    );
+    const lines = ucList
+        .map(uc => {
+            const data = groupedMap.get(uc);
+            const normal = data?.normal ?? 0;
+            const used = data?.used ?? 0;
+            return `💎 ${uc} UC: ${normal} шт. (использовано: ${used})`;
+        })
+        .join('\n');
+
+    const text = `📦 <b>Остатки кодов по номиналам</b>\n\n${lines}`;
+
+    // 4. Кнопки
+    const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
+    const keyboard = {
+        inline_keyboard: [
+            ucButtons.slice(0, 4),
+            ucButtons.slice(4, 8),
+            [{ text: "🔓 Освободить RESERVED", callback_data: "adm_освободить" }],
+            [{ text: "🔙 Назад", callback_data: "adm_back" }]
+        ]
+    };
+    console.log('text length:', text.length);
+    console.log('keyboard:', JSON.stringify(keyboard, null, 2));
+
+    await editTg(currentChatId, msgId, text, keyboard);
+}
 
         if (data.startsWith('adm_код_batch_')) {
             const uc = parseInt(data.replace('adm_код_batch_', ''));
