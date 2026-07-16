@@ -1880,38 +1880,48 @@ app.post('/api/bot-webhook', async (req, res) => {
             };
             console.log('text length:', text.length);
             console.log('keyboard:', JSON.stringify(keyboard, null, 2));
-            console.log('📤 Начинаем обновление сообщения...');
+            // ---------- НАЧАЛО БЛОКА ОТПРАВКИ ----------
+console.log('📤 Начинаем отправку/обновление...');
 
+// Пытаемся отправить новое сообщение через axios напрямую (без удаления)
 try {
-    // Попытка отредактировать (если используете editTg)
-    await editTg(currentChatId, msgId, text, keyboard);
-    console.log('✅ Сообщение обновлено через editTg');
-} catch (editErr) {
-    const errorMessage = editErr instanceof Error ? editErr.message : String(editErr);
-    console.error('❌ editTg не сработал:', errorMessage);
+    console.log('📤 Отправляем новое сообщение через axios...');
+    const response = await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        chat_id: currentChatId,
+        text: text,
+        parse_mode: 'HTML',
+        reply_markup: keyboard
+    });
+    console.log('✅ Ответ Telegram:', response.data);
+    console.log('✅ Сообщение успешно отправлено, message_id:', response.data.result.message_id);
+} catch (err) {
+    // Приводим err к типу Error для безопасного доступа к message
+    const error = err instanceof Error ? err : new Error(String(err));
+    console.error('❌ Ошибка при отправке через axios:', error.message);
+    if (error.stack) console.error('📚 Stack:', error.stack);
     
-    // Fallback: удалить и отправить новое
-    console.log('🗑 Удаляем старое сообщение...');
-    try {
-        await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
-            chat_id: currentChatId,
-            message_id: msgId
-        });
-        console.log('✅ Старое сообщение удалено');
-    } catch (delErr) {
-        const delMessage = delErr instanceof Error ? delErr.message : String(delErr);
-        console.error('❌ Ошибка удаления:', delMessage);
-    }
-
-    console.log('📤 Отправляем новое сообщение...');
-    try {
-        await sendTg(currentChatId, text, keyboard);
-        console.log('✅ Новое сообщение отправлено');
-    } catch (sendErr) {
-        const sendMessage = sendErr instanceof Error ? sendErr.message : String(sendErr);
-        console.error('❌ Ошибка отправки нового сообщения:', sendMessage);
+    // Дополнительно выводим данные ответа, если есть
+    if (err && typeof err === 'object' && 'response' in err) {
+        const responseErr = err as { response?: { data?: unknown } };
+        console.error('📦 Детали ответа:', responseErr.response?.data);
     }
 }
+
+// Старое сообщение можно удалить, но для теста пока не удаляем, чтобы увидеть новое
+// Если хотите удалить – раскомментируйте:
+/*
+try {
+    await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/deleteMessage`, {
+        chat_id: currentChatId,
+        message_id: msgId
+    });
+    console.log('✅ Старое сообщение удалено');
+} catch (delErr) {
+    const delError = delErr instanceof Error ? delErr : new Error(String(delErr));
+    console.error('❌ Ошибка удаления:', delError.message);
+}
+*/
+// ---------- КОНЕЦ БЛОКА ОТПРАВКИ ----------
         }
 
         if (data.startsWith('adm_код_batch_')) {
