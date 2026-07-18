@@ -112,8 +112,10 @@ const Checkout: React.FC<CheckoutProps> = ({ pack, onBack }) => {
   const [settings, setSettings] = useState<any>(null);
 
   const tg = (window as any).Telegram?.WebApp;
-  const isTelegramApp = !!(window as any).Telegram?.WebApp;
+  const isTelegramApp = !!tg?.initDataUnsafe?.user;
 
+  console.log('🔍 window.Telegram:', (window as any).Telegram);
+  console.log('🔍 isTelegramApp:', isTelegramApp);
   const VITE_API_NGROK = import.meta.env.VITE_API_NGROK;
   const isMultiCode = pack.items && pack.items.length > 0;
   const items = pack.items || [];
