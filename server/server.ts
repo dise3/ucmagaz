@@ -22,6 +22,8 @@ import * as fs from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
+import { sendGiftCodeEmail } from './emailService';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const START_IMAGE_PATH = join(__dirname, '..', 'client', 'public', 'start.jpg');
 
@@ -707,6 +709,7 @@ app.post('/api/create-payment', async (req, res) => {
             account_login,
             account_password,
             game_nickname,
+            username,
         } = req.body;
 
         if (user_chat_id) {
@@ -738,6 +741,7 @@ app.post('/api/create-payment', async (req, res) => {
                 account_login: account_login || null,
                 account_password: account_password || null,
                 game_nickname: game_nickname || null,
+                email: username || null
             }])
             .select()
             .single();
@@ -891,133 +895,151 @@ app.post('/api/payment-callback', async (req, res) => {
                     if (payResult.status === 'completed') {
                         if (order.order_type === 'ps_gift' && payResult.pins && payResult.pins.length > 0) {
                             const pinCode = payResult.pins[0];
-                            await sendTg(order.user_chat_id,
-                                `🎁 <b>Ваш код PlayStation готов!</b>\n\n` +
-                                `Код: <code>${pinCode}</code>\n\n` +
-                                `<i>Активируйте его в настройках вашего аккаунта PS Store.</i>`
-                            );
+                            const hasTelegram = order.user_chat_id && order.user_chat_id !== 0;
+                            const userEmail = order.email;
+
+                            if (hasTelegram) {
+                                await sendTg(order.user_chat_id,
+                                    `🎁 <b>Ваш код PlayStation готов!</b>\n\n` +
+                                    `Код: <code>${pinCode}</code>\n\n` +
+                                    `<i>Активируйте его в настройках вашего аккаунта PS Store.</i>`
+                                );
+                            } else {
+                                if (userEmail) {
+                                    try {
+                                        await sendGiftCodeEmail(userEmail, pinCode, order.id);
+                                        console.log(`✅ Код для заказа #${order.id} отправлен на почту ${userEmail}`);
+                                        await sendTg(ADMIN_CHAT_ID, `📧 Код для заказа #${order.id} отправлен на почту ${userEmail}`);
+                                    } catch (emailError) {
+                                        console.error('❌ Ошибка отправки письма:', emailError);
+                                        await sendTg(ADMIN_CHAT_ID, `⚠️ Ошибка отправки письма для заказа #${order.id}. Код: ${pinCode}`);
+                                    }
+                                } else {
+                                    await sendTg(ADMIN_CHAT_ID, `❌ Нет email для заказа #${order.id}. Код: ${pinCode}`);
+                                } 
+                            }
                         } else {
-                            await sendTg(order.user_chat_id,
-                                `✅ <b>Steam успешно пополнен!</b>\n\n` +
-                                `Логин: <code>${order.uid_player}</code>\n` +
-                                `Сумма: $${order.amount_uc}`
-                            );
+                                await sendTg(order.user_chat_id,
+                                    `✅ <b>Steam успешно пополнен!</b>\n\n` +
+                                    `Логин: <code>${order.uid_player}</code>\n` +
+                                    `Сумма: $${order.amount_uc}`
+                                );
+                            }
+
+                            await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
+                            if (order.order_type === 'ps_gift') {
+                                await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} PlayStation успешно выполнен. Код выдан пользователю.`);
+                            } else {
+                                await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} Steam успешно выполнен. Пополнение прошло на ${order.amount_uc}.`);
+                            }
+
+                        } else if (payResult.status === 'in_progress') {
+                            await sendTg(order.user_chat_id, `⏳ Ваш заказ находится в обработке на стороне провайдера. Мы пришлем уведомление сразу после активации.`);
+                        } else {
+                            // Если статус 'insufficient' или другой
+                            throw new Error(`Статус API: ${payResult.status}`);
                         }
 
-                        await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
-                        if (order.order_type === 'ps_gift') {
-                            await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} PlayStation успешно выполнен. Код выдан пользователю.`);
+                        return;
+
+                    } catch (e: any) {
+                        // Распаковка детальной ошибки
+                        const errorData = e.response?.data;
+                        console.error('❌ ДЕТАЛЬНАЯ ОШИБКА NS API:', JSON.stringify(errorData, null, 2));
+
+                        let errorMessage = 'Неизвестная ошибка';
+                        if (errorData) {
+                            errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
                         } else {
-                            await sendTg(ADMIN_CHAT_ID, `✅ Заказ #${order.id} Steam успешно выполнен. Пополнение прошло на ${order.amount_uc}.`);
+                            errorMessage = e.message;
                         }
 
-                    } else if (payResult.status === 'in_progress') {
-                        await sendTg(order.user_chat_id, `⏳ Ваш заказ находится в обработке на стороне провайдера. Мы пришлем уведомление сразу после активации.`);
-                    } else {
-                        // Если статус 'insufficient' или другой
-                        throw new Error(`Статус API: ${payResult.status}`);
+                        const username = await getDisplayName(order);
+
+                        await sendTg(ADMIN_CHAT_ID,
+                            `❌ <b>ОШИБКА АВТОВЫДАЧИ #${order.id}</b>\n` +
+                            `Тип: ${order.order_type}\n` +
+                            `Юзер: ${username}\n` +
+                            `Причина: <code>${errorMessage}</code>\n\n` +
+                            `⚠️ <b>ВЫДАЙТЕ ВРУЧНУЮ!</b>`
+                        );
+                        return;
                     }
-
-                    return;
-
-                } catch (e: any) {
-                    // Распаковка детальной ошибки
-                    const errorData = e.response?.data;
-                    console.error('❌ ДЕТАЛЬНАЯ ОШИБКА NS API:', JSON.stringify(errorData, null, 2));
-
-                    let errorMessage = 'Неизвестная ошибка';
-                    if (errorData) {
-                        errorMessage = errorData.detail || errorData.message || JSON.stringify(errorData);
-                    } else {
-                        errorMessage = e.message;
-                    }
-
-                    const username = await getDisplayName(order);
-
-                    await sendTg(ADMIN_CHAT_ID,
-                        `❌ <b>ОШИБКА АВТОВЫДАЧИ #${order.id}</b>\n` +
-                        `Тип: ${order.order_type}\n` +
-                        `Юзер: ${username}\n` +
-                        `Причина: <code>${errorMessage}</code>\n\n` +
-                        `⚠️ <b>ВЫДАЙТЕ ВРУЧНУЮ!</b>`
-                    );
-                    return;
                 }
-            }
             // --- КОНЕЦ БЛОКА NS API ---
 
             if (order.is_code_order && order.uid_player !== 'MANUAL_ORDER') {
-                const { data: codeEntry } = await supabase
-                    .from('codes_stock')
-                    .select('*')
-                    .eq('value', order.amount_uc)
-                    .eq('is_used', false)
-                    .limit(1)
-                    .single();
+                    const { data: codeEntry } = await supabase
+                        .from('codes_stock')
+                        .select('*')
+                        .eq('value', order.amount_uc)
+                        .eq('is_used', false)
+                        .limit(1)
+                        .single();
 
-                if (codeEntry) {
-                    await supabase.from('codes_stock').update({ is_used: true }).eq('id', codeEntry.id);
-                    await sendTg(order.user_chat_id, `🎁 <b>Ваш промокод на ${order.amount_uc} UC:</b>\n\n<code>${codeEntry.code}</code>\n\nАктивируйте на Midasbuy.`);
-                    const username = await getDisplayName(order);
-                    await sendTg(ADMIN_CHAT_ID, `✅ Код на ${order.amount_uc} UC выдан автоматически (Заказ #${order.id}) для ${username}`);
-                    await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
-                } else {
-                    const username = await getDisplayName(order);
-                    await sendTg(ADMIN_CHAT_ID, `⚠️ <b>НЕТ КОДОВ!</b> Заказ #${order.id} на ${order.amount_uc} UC для ${username}. Выдайте вручную!`);
-                }
-                return;
-            }
-
-            if (order.amount_uc < 1800 && order.order_type === 'uc') {
-                const username = await getDisplayName(order);
-                const adminMsg = `🤖 <b>АВТО-ВЫДАЧА #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: <b>${order.amount_uc} UC</b>\n💵 Руб: ${order.price_rub}\n\n🤖 <i>Бот выдает автоматически.</i>`;
-
-                await sendTg(ADMIN_CHAT_ID, adminMsg);
-                await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 5-15 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
-
-                try {
-                    await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id);
-                } catch (e) {
-                    await sendTg(ADMIN_CHAT_ID, `❌ Ошибка бота в заказе #${order.id}`);
-                }
-            } else if (order.order_type === 'pp' || order.order_type === 'tickets' || order.order_type === 'skin' || order.order_type === 'prime' || order.order_type === 'prime_plus') {
-                const username = await getDisplayName(order);
-                const item = order.order_type === 'pp' ? 'ПП' : order.order_type === 'tickets' ? 'билетов' : order.order_type === 'skin' ? 'скина' : order.order_type === 'prime' ? 'Prime' : 'Prime Plus';
-                const adminMsg = `💰 <b>ЗАКАЗ ${item.toUpperCase()} #${order.id}</b>\n\n👤 <b>${username}</b>\n${order.order_type === 'skin' ? `🎭 Скин: <code>${order.uid_player}</code>\n` : `🆔 UID: <code>${order.uid_player}</code>\n👑 Сумма: <b>${order.amount_uc} ${item}</b>\n`}💵 Руб: ${order.price_rub}`;
-                const keyboard = { inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `done_${order.id}` }]] };
-                await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
-
-                const userMsg = order.order_type === 'skin' ? `🎭 <b>Ваш скин будет выдан вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : order.order_type === 'prime' || order.order_type === 'prime_plus' ? `🎮 <b>Ваша подписка ${item} будет активирована вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : `👑 <b>${order.amount_uc} ${item}</b> будут выданы вручную в ближайшее время.\n\nЕсли возникнут вопросы, пишите в поддержку.`;
-                await sendTg(order.user_chat_id, userMsg);
-            } else {
-                // Крупные заказы 1800+ - автовыдача с задержкой 2 минуты и возможностью перехвата
-                const username = await getDisplayName(order);
-                const adminMsg = `💰 <b>КРУПНЫЙ ЗАКАЗ #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: ${order.amount_uc} UC\n💵 Руб: ${order.price_rub}\n\n⏰ <i>Автовыдача через 2 минуты. Можете перехватить.</i>`;
-
-                const keyboard = { inline_keyboard: [[{ text: "🛑 Перехватить (Отменить бота)", callback_data: `hold_${order.id}` }]] };
-                await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
-                await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 2-5 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
-
-                // Устанавливаем таймер на автовыдачу через 2 минуты (120000 мс)
-                const automationTimer = setTimeout(async () => {
-                    try {
-                        console.log(`[AUTO-FULFILL] Starting automated fulfillment for order ${order.id} (${order.amount_uc} UC)`);
-                        await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id);
-                        await sendTg(ADMIN_CHAT_ID, `✅ Автовыдача заказа #${order.id} (${order.amount_uc} UC) завершена`);
-                    } catch (e) {
-                        console.error(`[AUTO-FULFILL] Error in order ${order.id}:`, e);
-                        await sendTg(ADMIN_CHAT_ID, `❌ Ошибка автовыдачи заказа #${order.id}. Выдайте вручную!`);
+                    if (codeEntry) {
+                        await supabase.from('codes_stock').update({ is_used: true }).eq('id', codeEntry.id);
+                        await sendTg(order.user_chat_id, `🎁 <b>Ваш промокод на ${order.amount_uc} UC:</b>\n\n<code>${codeEntry.code}</code>\n\nАктивируйте на Midasbuy.`);
+                        const username = await getDisplayName(order);
+                        await sendTg(ADMIN_CHAT_ID, `✅ Код на ${order.amount_uc} UC выдан автоматически (Заказ #${order.id}) для ${username}`);
+                        await supabase.from('orders').update({ status: 'completed' }).eq('id', order.id);
+                    } else {
+                        const username = await getDisplayName(order);
+                        await sendTg(ADMIN_CHAT_ID, `⚠️ <b>НЕТ КОДОВ!</b> Заказ #${order.id} на ${order.amount_uc} UC для ${username}. Выдайте вручную!`);
                     }
-                }, 120000); // 2 минуты
+                    return;
+                }
 
-                automationTimers.set(order.id, automationTimer);
+                if (order.amount_uc < 1800 && order.order_type === 'uc') {
+                    const username = await getDisplayName(order);
+                    const adminMsg = `🤖 <b>АВТО-ВЫДАЧА #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: <b>${order.amount_uc} UC</b>\n💵 Руб: ${order.price_rub}\n\n🤖 <i>Бот выдает автоматически.</i>`;
+
+                    await sendTg(ADMIN_CHAT_ID, adminMsg);
+                    await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 5-15 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
+
+                    try {
+                        await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id);
+                    } catch (e) {
+                        await sendTg(ADMIN_CHAT_ID, `❌ Ошибка бота в заказе #${order.id}`);
+                    }
+                } else if (order.order_type === 'pp' || order.order_type === 'tickets' || order.order_type === 'skin' || order.order_type === 'prime' || order.order_type === 'prime_plus') {
+                    const username = await getDisplayName(order);
+                    const item = order.order_type === 'pp' ? 'ПП' : order.order_type === 'tickets' ? 'билетов' : order.order_type === 'skin' ? 'скина' : order.order_type === 'prime' ? 'Prime' : 'Prime Plus';
+                    const adminMsg = `💰 <b>ЗАКАЗ ${item.toUpperCase()} #${order.id}</b>\n\n👤 <b>${username}</b>\n${order.order_type === 'skin' ? `🎭 Скин: <code>${order.uid_player}</code>\n` : `🆔 UID: <code>${order.uid_player}</code>\n👑 Сумма: <b>${order.amount_uc} ${item}</b>\n`}💵 Руб: ${order.price_rub}`;
+                    const keyboard = { inline_keyboard: [[{ text: "✅ Выдал (Уведомить)", callback_data: `done_${order.id}` }]] };
+                    await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
+
+                    const userMsg = order.order_type === 'skin' ? `🎭 <b>Ваш скин будет выдан вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : order.order_type === 'prime' || order.order_type === 'prime_plus' ? `🎮 <b>Ваша подписка ${item} будет активирована вручную в ближайшее время.</b>\n\nЕсли возникнут вопросы, пишите в поддержку.` : `👑 <b>${order.amount_uc} ${item}</b> будут выданы вручную в ближайшее время.\n\nЕсли возникнут вопросы, пишите в поддержку.`;
+                    await sendTg(order.user_chat_id, userMsg);
+                } else {
+                    // Крупные заказы 1800+ - автовыдача с задержкой 2 минуты и возможностью перехвата
+                    const username = await getDisplayName(order);
+                    const adminMsg = `💰 <b>КРУПНЫЙ ЗАКАЗ #${order.id}</b>\n\n👤 <b>${username}</b>\n🆔 UID: <code>${order.uid_player}</code>\n💎 Сумма: ${order.amount_uc} UC\n💵 Руб: ${order.price_rub}\n\n⏰ <i>Автовыдача через 2 минуты. Можете перехватить.</i>`;
+
+                    const keyboard = { inline_keyboard: [[{ text: "🛑 Перехватить (Отменить бота)", callback_data: `hold_${order.id}` }]] };
+                    await sendTg(ADMIN_CHAT_ID, adminMsg, keyboard);
+                    await sendTg(order.user_chat_id, `💳 <b>Оплата прошла успешно!</b>\n\n💎 <b>${order.amount_uc} UC</b> будут выданы автоматически в течение 2-5 минут на UID: <code>${order.uid_player}</code>\n\nЕсли возникнут вопросы, пишите в поддержку.`);
+
+                    // Устанавливаем таймер на автовыдачу через 2 минуты (120000 мс)
+                    const automationTimer = setTimeout(async () => {
+                        try {
+                            console.log(`[AUTO-FULFILL] Starting automated fulfillment for order ${order.id} (${order.amount_uc} UC)`);
+                            await fulfillOrder(order.id, order.uid_player, order.amount_uc, order.user_chat_id);
+                            await sendTg(ADMIN_CHAT_ID, `✅ Автовыдача заказа #${order.id} (${order.amount_uc} UC) завершена`);
+                        } catch (e) {
+                            console.error(`[AUTO-FULFILL] Error in order ${order.id}:`, e);
+                            await sendTg(ADMIN_CHAT_ID, `❌ Ошибка автовыдачи заказа #${order.id}. Выдайте вручную!`);
+                        }
+                    }, 120000); // 2 минуты
+
+                    automationTimers.set(order.id, automationTimer);
+                }
             }
+        } catch (e) {
+            console.error('Callback error:', e);
+            res.status(500).send('Error');
         }
-    } catch (e) {
-        console.error('Callback error:', e);
-        res.status(500).send('Error');
-    }
-});
+    });
 
 // 7. Получение настроек
 app.get('/api/settings', async (req, res) => {
@@ -1847,17 +1869,17 @@ app.post('/api/bot-webhook', async (req, res) => {
         if (data === 'adm_codes') {
             adminStates.delete(currentChatId);
             // Прямой тест для 3850 и 8100
-const { data: test3850, error: err3850 } = await supabase
-    .from('codes_stock')
-    .select('value, is_used')
-    .eq('value', 3850);
-console.log('🔍 Тест для 3850:', test3850?.length || 0, 'записей', err3850 || '');
+            const { data: test3850, error: err3850 } = await supabase
+                .from('codes_stock')
+                .select('value, is_used')
+                .eq('value', 3850);
+            console.log('🔍 Тест для 3850:', test3850?.length || 0, 'записей', err3850 || '');
 
-const { data: test8100, error: err8100 } = await supabase
-    .from('codes_stock')
-    .select('value, is_used')
-    .eq('value', 8100);
-console.log('🔍 Тест для 8100:', test8100?.length || 0, 'записей', err8100 || '');
+            const { data: test8100, error: err8100 } = await supabase
+                .from('codes_stock')
+                .select('value, is_used')
+                .eq('value', 8100);
+            console.log('🔍 Тест для 8100:', test8100?.length || 0, 'записей', err8100 || '');
             const { data: stock } = await supabase.from('codes_stock').select('value, is_used').eq('is_used', false).order('value');
             const grouped: Record<number, { normal: number; used: number }> = {};
             stock?.forEach((item: any) => {
@@ -1871,7 +1893,7 @@ console.log('🔍 Тест для 8100:', test8100?.length || 0, 'записей
                 }
             });
             console.log('📦 Количество записей в stock:', stock?.length);
-console.log('📦 Уникальные value в stock:', [...new Set(stock?.map(s => s.value))]);
+            console.log('📦 Уникальные value в stock:', [...new Set(stock?.map(s => s.value))]);
             const lines = Object.entries(grouped)
                 .sort(([a], [b]) => Number(a) - Number(b))
                 .map(([uc, { normal, used }]) => `💎 ${uc} UC: ${normal} шт.`)
@@ -1883,7 +1905,7 @@ console.log('📦 Уникальные value в stock:', [...new Set(stock?.map(
             console.log('baseDenoms length:', baseDenoms?.length);
             const ucList = baseDenoms?.map((d: any) => d.amount_uc) ?? [60, 325, 660, 1800, 3850, 8100];
             console.log('ucList:', ucList);
-            
+
             const ucButtons = ucList.map((uc: number) => ({ text: `${uc} UC`, callback_data: `adm_код_batch_${uc}` }));
             const keyboard = {
                 inline_keyboard: [
