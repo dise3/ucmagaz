@@ -14,7 +14,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
   const [settings, setSettings] = useState<any>(null);
   const [showHelp, setShowHelp] = useState(false);
 
-  const [selectedCurrency, setSelectedCurrency] = useState<'RUB' | 'KZT' | 'USD'>('RUB');
+  const [selectedCurrency, setSelectedCurrency] = useState<'RUB' | 'KZT' | 'USD' | 'UAH'>('RUB');
 
   const [isValidating, setIsValidating] = useState(false);
   const [loginStatus, setLoginStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
@@ -53,14 +53,16 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
     }
   };
 
-  const usdRate = settings?.usd_rate_store || settings?.usd_rate || 95;
+  const usdRate = settings?.ns_rate_rub;
   const steamMarkup = settings?.steam_fee_percent ?? 0.15;
   const paymentCommision = 1.0485;
-  const kztRate = settings?.kzt_rate_store;
+  const kztRate = settings?.ns_rate_kzt;
+  const uahRate = settings?.ns_rate_uah;
 
   const rubPerUnit = selectedCurrency === 'RUB' ? 1
     : selectedCurrency === 'USD' ? usdRate
-      : kztRate;
+      : selectedCurrency === 'KZT' ? kztRate
+        : uahRate;
 
   const amountNum = parseFloat(amount) || 0;
   const amountInRub = amountNum;
@@ -191,7 +193,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
           </div>
 
           <div className="flex gap-2 mt-6">
-            {(['RUB', 'KZT', 'USD'] as const).map((cur) => (
+            {(['RUB', 'KZT', 'USD', 'UAH'] as const).map((cur) => (
               <button
                 key={cur}
                 onClick={() => setSelectedCurrency(cur)}
@@ -245,7 +247,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
               <div className="flex justify-between text-sm">
                 <span className="text-white/70">Сумма пополнения</span>
                 <span className="text-white font-bold">
-                  {receiveSelected.toFixed(2)} {selectedCurrency === 'RUB' ? '₽' : selectedCurrency === 'USD' ? '$' : '₸'}
+                  {receiveSelected.toFixed(2)} {selectedCurrency === 'RUB' ? '₽' : selectedCurrency === 'USD' ? '$' : selectedCurrency === 'KZT' ? '₸' : '₴'}
                 </span>
               </div>
               {/* Итого */}

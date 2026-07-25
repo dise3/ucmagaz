@@ -62,6 +62,55 @@ type AdminState = {
 };
 const adminStates = new Map<string, AdminState>();
 
+
+
+type CurrencyRatesNS = {
+    rub:number;
+    kzt:number;
+    uah:number;
+}
+
+async function fetchRatesNS(): Promise<CurrencyRatesNS> {
+    const result = await nsClient.call('POST', '/api/v2/exchange_rate', null, {service_id : 1});
+    const rates = result?.rates;
+        if (!rates || typeof rates.rub !== 'number' || typeof rates.kzt !== 'number' || typeof rates.uah !== 'number') {
+        throw new Error('Некорректный ответ от NS API');
+    }
+    return {
+        rub: rates.rub,
+        kzt: rates.kzt,
+        uah: rates.uah,
+    }
+}
+
+async function updateCurrencyRatesInDB() {
+    try {
+        console.log('[CURRENCY] Запрос курсов у NS API...');
+        const rates = await fetchRatesNS();
+
+        // Обновляем поля в таблице settings
+        const { error } = await supabase
+            .from('settings')
+            .update({
+                ns_rate_rub: rates.rub,
+                ns_rate_kzt: rates.kzt,
+                ns_rate_uah: rates.uah,
+            })
+            .eq('id', 1);
+
+        if (error) {
+            console.error('[CURRENCY] Ошибка обновления БД:', error);
+        } else {
+            console.log(`[CURRENCY] Курсы обновлены: RUB=${rates.rub}, KZT=${rates.kzt}, UAH=${rates.uah}`);
+        }
+    } catch (err) {
+        console.error('[CURRENCY] Ошибка получения курсов:', err);
+    }
+}
+
+updateCurrencyRatesInDB();
+setInterval(updateCurrencyRatesInDB, 100000)
+
 // --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ TELEGRAM ---
 
 const sendTg = async (chatId: string | number | string[], text: string, replyMarkup?: any) => {
@@ -491,6 +540,28 @@ async function addBroadcastUser(chatId: string | number, username?: string, firs
 // --- API РОУТЫ ---
 
 app.get('/', (req, res) => res.send('✅ Server is running'));
+
+app.get('/api/currency-rates', async (req, res) => {
+    try {
+        const { data: settings, error } = await supabase
+            .from('settings')
+            .select('ns_rate_kzt, ns_rate_rub, ns_rate_uah')
+            .single();
+
+        if (error || !settings) {
+            return res.status(500).json({ error: 'Не удалось получить курсы из БД' });
+        }
+
+        res.json({
+            rub: settings.ns_rate_kzt,
+            kzt: settings.ns_rate_rub,
+            uah: settings.ns_rate_uah,
+            timestamp: new Date().toISOString(),
+        });
+    } catch (err) {
+        res.status(500).json({ error: 'Внутренняя ошибка' });
+    }
+});
 
 app.post('/api/steam/check-user', async (req, res) => {
     try {
