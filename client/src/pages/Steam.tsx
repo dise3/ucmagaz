@@ -60,10 +60,10 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
 
   const rubPerUnit = selectedCurrency === 'RUB' ? 1
     : selectedCurrency === 'USD' ? usdRate
-      : kztRate
+      : kztRate;
 
   const amountNum = parseFloat(amount) || 0;
-  const amountInRub = amountNum * rubPerUnit;
+  const amountInRub = amountNum;
 
   const calculateFinalPriceRub = () => {
     if (mode === 'pay') return Math.ceil(amountInRub);
@@ -81,7 +81,6 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
 
   const receiveSelected = receiveRub / rubPerUnit;
   const finalPriceSelected = finalPrice / rubPerUnit;
-  const feeSelected = finalPriceSelected - receiveSelected;
 
   const receiveUsd = receiveRub / usdRate;
   const receiveKzt = receiveRub / kztRate;
@@ -187,11 +186,11 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
           <span className="text-black font-black text-lg italic">02</span>
         </div>
         <div className="bg-[#242429] border border-white/5 rounded-[28px] p-6 pt-8 space-y-4 shadow-xl">
-        <div className='flex ustify-between items-center'>
-          <h2 className="text-[15px] font-bold text-white/90 uppercase italic">Выберите регион</h2>
-        </div>
-                
-          <div className="flex gap-2 mt-4">
+          <div className='flex ustify-between items-center'>
+            <h2 className="text-[15px] font-bold text-white/90 uppercase italic">Выберите регион</h2>
+          </div>
+
+          <div className="flex gap-2 mt-6">
             {(['RUB', 'KZT', 'USD'] as const).map((cur) => (
               <button
                 key={cur}
@@ -206,94 +205,91 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
             ))}
           </div>
         </div>
-        </div>
-
-        {/* 03 - СУММА */}
-        <div className="relative group">
-          <div className="absolute -top-3 -left-2 bg-gradient-to-br from-amber-400 to-orange-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-amber-900/40 transform -rotate-12 z-20 border border-amber-300/30">
-            <span className="text-black font-black text-lg italic">03</span>
-          </div>
-
-
-          <div className="bg-[#242429] border border-white/5 rounded-[28px] p-6 pt-8 space-y-4 shadow-xl">
-            <div className="flex justify-between items-center">
-              <h2 className="text-[15px] font-bold text-white/90 uppercase italic">{mode === 'receive' ? 'Сумма зачисления' : 'Сумма пополнения'}</h2>
-              <button onClick={() => setMode(m => m === 'receive' ? 'pay' : 'receive')} className="p-2 bg-amber-500/10 rounded-xl active:scale-75 border border-amber-500/20"><ArrowLeftRight size={16} className="text-amber-500" /></button>
-            </div>
-
-            <div className="relative">
-              <input
-                type="number" min="0" value={amount}
-                onKeyDown={(e) => ["-", "e", "E"].includes(e.key) && e.preventDefault()}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="0"
-                className={`w-full bg-[#1c1c21] border-2 rounded-xl py-4 px-5 text-white text-2xl font-black outline-none transition-all focus:border-amber-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isAmountTooLow ? 'border-red-500/50' : 'border-white/10'}`}
-              />
-              <span className="absolute right-5 top-1/2 -translate-y-1/2 text-amber-500 font-black text-sm uppercase italic opacity-50">RUB</span>
-            </div>
-
-            {/* Предупреждение о минимальной сумме */}
-            {isAmountTooLow && (
-              <div className="flex items-center gap-1.5 text-red-500 px-1 animate-in slide-in-from-top-1">
-                <AlertCircle size={14} />
-                <span className="text-[11px] font-black uppercase tracking-tighter">Минимальная сумма — {MIN_AMOUNT} ₽</span>
-              </div>
-            )}
-
-            {amount && !isAmountTooLow && (
-              <div className="bg-amber-500/5 rounded-xl p-4 border border-amber-500/10 animate-in zoom-in-95 duration-300 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span className="text-white/70">Сумма пополнения</span>
-                  <span className="text-white font-bold">
-                    {receiveSelected.toFixed(2)} {selectedCurrency === 'RUB' ? '₽' : selectedCurrency === 'USD' ? '$' : '₸'}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm border-t border-white/10 pt-2">
-                  <span className="text-white font-bold">Итого</span>
-                  <span className="text-white font-bold">
-                    {finalPriceSelected.toFixed(2)} {selectedCurrency === 'RUB' ? '₽' : selectedCurrency === 'USD' ? '$' : '₸'}
-                  </span>
-                </div>
-                {/* Эквиваленты в других валютах */}
-                <div className="flex justify-between text-xs text-white/40 pt-1">
-                  <span>≈ {receiveUsd.toFixed(2)} USD</span>
-                  <span>≈ {receiveKzt.toFixed(2)} KZT</span>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* ПРАВИЛА */}
-        <div className="space-y-4 px-1">
-          <div className="flex items-center gap-2 text-white/90 font-black text-xs uppercase tracking-tighter"><Info size={18} className="text-amber-500" /><span>Важные правила покупки</span></div>
-          <div className="space-y-3">
-            {[
-              { id: 1, text: 'Нужно ввести логин аккаунта, если Вы введете его неправильно, то средства могут быть утеряны' },
-              { id: 2, text: 'Никнейм не всегда совпадает с логином, нужно ввести именно логин.' },
-              { id: 3, text: 'После успешной оплаты средства поступят до 10 минут, если они не пришли, то обратитесь в поддержку.' },
-            ].map(rule => (
-              <div key={rule.id} className="flex gap-4 items-start">
-                <div className="w-8 h-8 shrink-0 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 font-black text-sm">{rule.id}</div>
-                <p className="text-white/60 text-[13px] leading-snug pt-0.5 font-medium">{rule.text}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <button
-          disabled={!login || !amount || parseFloat(amount) < MIN_AMOUNT || loginStatus !== 'valid'}
-          onClick={() => setShowCheckout(true)}
-          className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:opacity-30 disabled:grayscale py-6 rounded-2xl text-black font-black text-xl uppercase transition-all shadow-lg shadow-amber-900/40 mt-2 active:scale-[0.98]"
-        >
-          {loginStatus !== 'valid'
-            ? 'Проверьте логин'
-            : isAmountTooLow
-              ? `Мин. сумма ${MIN_AMOUNT} ₽`
-              : 'Пополнить баланс'}
-        </button>
       </div>
-      );
+
+      {/* 03 - СУММА */}
+      <div className="relative group">
+        <div className="absolute -top-3 -left-2 bg-gradient-to-br from-amber-400 to-orange-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-amber-900/40 transform -rotate-12 z-20 border border-amber-300/30">
+          <span className="text-black font-black text-lg italic">03</span>
+        </div>
+
+
+        <div className="bg-[#242429] border border-white/5 rounded-[28px] p-6 pt-8 space-y-4 shadow-xl">
+          <div className="flex justify-between items-center">
+            <h2 className="text-[15px] font-bold text-white/90 uppercase italic">{mode === 'receive' ? 'Сумма зачисления' : 'Сумма пополнения'}</h2>
+            <button onClick={() => setMode(m => m === 'receive' ? 'pay' : 'receive')} className="p-2 bg-amber-500/10 rounded-xl active:scale-75 border border-amber-500/20"><ArrowLeftRight size={16} className="text-amber-500" /></button>
+          </div>
+
+          <div className="relative">
+            <input
+              type="number" min="0" value={amount}
+              onKeyDown={(e) => ["-", "e", "E"].includes(e.key) && e.preventDefault()}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0"
+              className={`w-full bg-[#1c1c21] border-2 rounded-xl py-4 px-5 text-white text-2xl font-black outline-none transition-all focus:border-amber-500/50 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${isAmountTooLow ? 'border-red-500/50' : 'border-white/10'}`}
+            />
+            <span className="absolute right-5 top-1/2 -translate-y-1/2 text-amber-500 font-black text-sm uppercase italic opacity-50">RUB</span>
+          </div>
+
+          {/* Предупреждение о минимальной сумме */}
+          {isAmountTooLow && (
+            <div className="flex items-center gap-1.5 text-red-500 px-1 animate-in slide-in-from-top-1">
+              <AlertCircle size={14} />
+              <span className="text-[11px] font-black uppercase tracking-tighter">Минимальная сумма — {MIN_AMOUNT} ₽</span>
+            </div>
+          )}
+
+          {amount && !isAmountTooLow && (
+            <div className="bg-amber-500/5 rounded-xl p-4 border border-amber-500/10 animate-in zoom-in-95 duration-300 space-y-2">
+              {/* Сумма пополнения */}
+              <div className="flex justify-between text-sm">
+                <span className="text-white/70">Сумма пополнения</span>
+                <span className="text-white font-bold">
+                  {receiveSelected.toFixed(2)} {selectedCurrency === 'RUB' ? '₽' : selectedCurrency === 'USD' ? '$' : '₸'}
+                </span>
+              </div>
+              {/* Итого */}
+              <div className="flex justify-between text-sm border-t border-white/10 pt-2">
+                <span className="text-white font-bold">Итого</span>
+                <span className="text-white font-bold">
+                  {finalPriceSelected.toFixed(2)} {selectedCurrency === 'RUB' ? '₽' : selectedCurrency === 'USD' ? '$' : '₸'}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ПРАВИЛА */}
+      <div className="space-y-4 px-1">
+        <div className="flex items-center gap-2 text-white/90 font-black text-xs uppercase tracking-tighter"><Info size={18} className="text-amber-500" /><span>Важные правила покупки</span></div>
+        <div className="space-y-3">
+          {[
+            { id: 1, text: 'Нужно ввести логин аккаунта, если Вы введете его неправильно, то средства могут быть утеряны' },
+            { id: 2, text: 'Никнейм не всегда совпадает с логином, нужно ввести именно логин.' },
+            { id: 3, text: 'После успешной оплаты средства поступят до 10 минут, если они не пришли, то обратитесь в поддержку.' },
+          ].map(rule => (
+            <div key={rule.id} className="flex gap-4 items-start">
+              <div className="w-8 h-8 shrink-0 bg-amber-500/10 border border-amber-500/20 rounded-lg flex items-center justify-center text-amber-500 font-black text-sm">{rule.id}</div>
+              <p className="text-white/60 text-[13px] leading-snug pt-0.5 font-medium">{rule.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <button
+        disabled={!login || !amount || parseFloat(amount) < MIN_AMOUNT || loginStatus !== 'valid'}
+        onClick={() => setShowCheckout(true)}
+        className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:opacity-30 disabled:grayscale py-6 rounded-2xl text-black font-black text-xl uppercase transition-all shadow-lg shadow-amber-900/40 mt-2 active:scale-[0.98]"
+      >
+        {loginStatus !== 'valid'
+          ? 'Проверьте логин'
+          : isAmountTooLow
+            ? `Мин. сумма ${MIN_AMOUNT} ₽`
+            : 'Пополнить баланс'}
+      </button>
+    </div>
+  );
 };
 
-      export default Steam;
+export default Steam;
