@@ -191,7 +191,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
           <h2 className="text-[15px] font-bold text-white/90 uppercase italic">Выберите регион</h2>
         </div>
                 
-          <div className="flex gap-2 -mt-2">
+          <div className="flex gap-2 mt-4">
             {(['RUB', 'KZT', 'USD'] as const).map((cur) => (
               <button
                 key={cur}
