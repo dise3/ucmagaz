@@ -61,8 +61,8 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
 
   const rubPerUnit = selectedCurrency === 'RUB' ? 1
     : selectedCurrency === 'USD' ? usdRate
-      : selectedCurrency === 'KZT' ? kztRate
-        : uahRate;
+      : selectedCurrency === 'KZT' ? (1 / kztRate)
+        : (1 / uahRate);
 
   const amountNum = parseFloat(amount) || 0;
   const amountInRub = amountNum;
@@ -85,7 +85,8 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
   const finalPriceSelected = finalPrice / rubPerUnit;
 
   const receiveUsd = receiveRub / usdRate;
-  const receiveKzt = receiveRub / kztRate;
+  const receiveKzt = receiveRub * kztRate;
+  const receiveUah = receiveRub * uahRate;
 
   const calculateUsdForApi = () => {
     const receiveRub = calculateReceiveRub();
@@ -280,7 +281,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
       </div>
 
       <button
-        disabled={!login || !amount || parseFloat(amount) < MIN_AMOUNT || loginStatus !== 'valid'}
+        disabled={!login || !amount || amountInRub < MIN_AMOUNT || loginStatus !== 'valid'}
         onClick={() => setShowCheckout(true)}
         className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 disabled:opacity-30 disabled:grayscale py-6 rounded-2xl text-black font-black text-xl uppercase transition-all shadow-lg shadow-amber-900/40 mt-2 active:scale-[0.98]"
       >
