@@ -252,7 +252,7 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
               <div className="flex justify-between text-sm border-t border-white/10 pt-2">
                 <span className="text-white font-bold">Итого</span>
                 <span className="text-white font-bold">
-                  {finalPrice}
+                  {finalPrice} ₽
                 </span>
               </div>
             </div>
