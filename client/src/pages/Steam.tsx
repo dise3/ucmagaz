@@ -181,12 +181,16 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
       </div>
 
 
-
+      {/* 02 */}
       <div className="relative group">
         <div className="absolute -top-3 -left-2 bg-gradient-to-br from-amber-400 to-orange-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-lg shadow-amber-900/40 transform -rotate-12 z-20 border border-amber-300/30">
-          <span className="text-black font-black text-lg italic">03</span>
+          <span className="text-black font-black text-lg italic">02</span>
         </div>
         <div className="bg-[#242429] border border-white/5 rounded-[28px] p-6 pt-8 space-y-4 shadow-xl">
+        <div className='flex ustify-between items-center'>
+          <h2 className="text-[15px] font-bold text-white/90 uppercase italic">Выберите регион</h2>
+        </div>
+                
           <div className="flex gap-2 -mt-2">
             {(['RUB', 'KZT', 'USD'] as const).map((cur) => (
               <button
