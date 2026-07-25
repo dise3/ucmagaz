@@ -186,25 +186,25 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
           <span className="text-black font-black text-lg italic">02</span>
         </div>
 
-        <div className="flex gap-2 -mt-2">
-          {(['RUB', 'KZT', 'USD'] as const).map((cur) => (
-            <button
-              key={cur}
-              onClick={() => setSelectedCurrency(cur)}
-              className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${selectedCurrency === cur
-                  ? 'bg-amber-500 text-black'
-                  : 'bg-white/5 text-white/50'
-                }`}
-            >
-              {cur}
-            </button>
-          ))}
-        </div>
 
         <div className="bg-[#242429] border border-white/5 rounded-[28px] p-6 pt-8 space-y-4 shadow-xl">
           <div className="flex justify-between items-center">
             <h2 className="text-[15px] font-bold text-white/90 uppercase italic">{mode === 'receive' ? 'Сумма зачисления' : 'Сумма пополнения'}</h2>
             <button onClick={() => setMode(m => m === 'receive' ? 'pay' : 'receive')} className="p-2 bg-amber-500/10 rounded-xl active:scale-75 border border-amber-500/20"><ArrowLeftRight size={16} className="text-amber-500" /></button>
+            <div className="flex gap-2 -mt-2">
+              {(['RUB', 'KZT', 'USD'] as const).map((cur) => (
+                <button
+                  key={cur}
+                  onClick={() => setSelectedCurrency(cur)}
+                  className={`flex-1 py-2 rounded-xl font-black text-sm transition-all ${selectedCurrency === cur
+                    ? 'bg-amber-500 text-black'
+                    : 'bg-white/5 text-white/50'
+                    }`}
+                >
+                  {cur}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="relative">
