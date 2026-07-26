@@ -59,11 +59,6 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
   const kztRate = settings?.ns_rate_kzt;
   const uahRate = settings?.ns_rate_uah;
 
-  const rubPerUnit = selectedCurrency === 'RUB' ? 1
-    : selectedCurrency === 'USD' ? usdRate
-      : selectedCurrency === 'KZT' ? (1 / kztRate)
-        : (1 / uahRate);
-
   const amountNum = parseFloat(amount) || 0;
   const amountInRub = amountNum;
 
@@ -81,12 +76,13 @@ const Steam: React.FC<SteamProps> = ({ onBack }) => {
   const finalPrice = calculateFinalPriceRub();
   const receiveRub = calculateReceiveRub();
 
-  const receiveSelected = receiveRub / rubPerUnit;
-  const finalPriceSelected = finalPrice / rubPerUnit;
+  // Пересчёт в выбранную валюту
+  let receiveSelected;
+  if (selectedCurrency === 'RUB') receiveSelected = receiveRub;
+  else if (selectedCurrency === 'USD') receiveSelected = receiveRub / usdRate;    // рубли → доллары
+  else if (selectedCurrency === 'KZT') receiveSelected = receiveRub * kztRate;    // рубли → тенге
+  else if (selectedCurrency === 'UAH') receiveSelected = receiveRub * uahRate;    // рубли → гривны
 
-  const receiveUsd = receiveRub / usdRate;
-  const receiveKzt = receiveRub * kztRate;
-  const receiveUah = receiveRub * uahRate;
 
   const calculateUsdForApi = () => {
     const receiveRub = calculateReceiveRub();
