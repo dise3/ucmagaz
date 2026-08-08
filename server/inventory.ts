@@ -11,6 +11,36 @@ interface CodeItem {
     value: number;
 }
 
+const COMBINATION_MAP: Record<number, number[]> = {
+    60:    [60],
+    120:   [60, 60],
+    180:   [60, 60, 60],
+    240:   [60, 60, 60, 60],
+    325:   [325],
+    385:   [325, 60],
+    445:   [325, 60, 60],
+    660:   [660],
+    720:   [660, 60],
+    985:   [660, 325],
+    1320:  [660, 660],
+    1800:  [1800],
+    1920:  [1800, 60, 60],
+    2125:  [1800, 325],
+    2460:  [1800, 660],
+    3850:  [3850],
+    4510:  [3850, 660],
+    5650:  [3850, 1800],
+    8100:  [8100],
+    9900:  [8100, 1800],
+    11950: [8100, 3850],
+    16200: [8100, 8100],
+    24300: [8100, 8100, 8100],
+    32400: [8100, 8100, 8100, 8100],
+    40500: [8100, 8100, 8100, 8100, 8100],
+    81000: [8100, 8100, 8100, 8100, 8100, 8100, 8100, 8100, 8100, 8100],
+};
+
+
 /**
  * ГЛАВНАЯ ФУНКЦИЯ ВЫПОЛНЕНИЯ ЗАКАЗА
  */
@@ -90,49 +120,79 @@ export async function processOrder(orderId: string, uid: string, targetUc: numbe
  * @param orderId — ID заказа для привязки зарезервированных кодов (для корректного rollback)
  */
 export async function findCodesForAmount(targetAmount: number, orderId?: string | number): Promise<CodeItem[] | null> {
-    const { data: pool, error } = await supabase
-        .from('codes_stock')
-        .select('id, code, value')
-        .eq('is_used', false)
-        .is('status', null) 
-        .order('value', { ascending: false });
-
-    if (error || !pool) return null;
-
-    console.log(`[📦] Доступные коды для ${targetAmount} UC:`, pool.map(c => `${c.value} UC (id:${c.id})`).join(', '));
-
-    const validPool: CodeItem[] = pool as unknown as CodeItem[];
-
-    function search(target: number, startIndex: number): CodeItem[] | null {
-        if (target === 0) return [];
-        if (target < 0 || startIndex >= validPool.length) return null;
-
-        for (let i = startIndex; i < validPool.length; i++) {
-            const res = search(target - validPool[i].value, i + 1);
-            if (res !== null) return [validPool[i], ...res];
-        }
+    // 1. Проверяем, есть ли сумма в таблице комбинаций
+    const requiredValues = COMBINATION_MAP[targetAmount];
+    if (!requiredValues) {
+        console.log(`[❌] Сумма ${targetAmount} отсутствует в таблице комбинаций.`);
         return null;
     }
 
-    const combination = search(targetAmount, 0);
-    if (combination && combination.length > 0) {
-        console.log(`[✅] Найдена комбинация для ${targetAmount} UC:`, combination.map(c => `${c.value} UC`).join(' + '));
-        const ids = combination.map(c => c.id);
-        const updateData: Record<string, unknown> = { is_used: true, status: 'RESERVED' };
-        if (orderId != null) updateData.order_id = orderId;
-        const { error: updError } = await supabase
-            .from('codes_stock')
-            .update(updateData)
-            .in('id', ids);
-            
-        if (updError) {
-            console.error('[❌] Ошибка при бронировании кодов:', updError.message);
-            return null;
-        }
-        return combination;
+    // 2. Подсчитываем, сколько каких номиналов нужно
+    const neededCounts = new Map<number, number>();
+    for (const val of requiredValues) {
+        neededCounts.set(val, (neededCounts.get(val) || 0) + 1);
     }
-    console.log(`[❌] Комбинация для ${targetAmount} UC не найдена.`);
-    return null;
+
+    // 3. Запрашиваем все доступные коды с нужными номиналами
+    const uniqueValues = Array.from(neededCounts.keys());
+    const { data: available, error } = await supabase
+        .from('codes_stock')
+        .select('id, code, value')
+        .eq('is_used', false)
+        .is('status', null)
+        .in('value', uniqueValues)
+        .order('value', { ascending: true }); // порядок не важен, но для стабильности
+
+    if (error || !available) {
+        console.error('[❌] Ошибка при запросе кодов:', error?.message);
+        return null;
+    }
+
+    // 4. Группируем по value
+    const availableByValue = new Map<number, CodeItem[]>();
+    for (const item of available) {
+        const val = item.value;
+        if (!availableByValue.has(val)) availableByValue.set(val, []);
+        availableByValue.get(val)!.push(item as CodeItem);
+    }
+
+    // 5. Проверяем, хватает ли каждого номинала
+    const selectedIds: (string | number)[] = [];
+    const selectedItems: CodeItem[] = [];
+
+    for (const [value, needed] of neededCounts.entries()) {
+        const pool = availableByValue.get(value) || [];
+        if (pool.length < needed) {
+            console.log(`[❌] Не хватает кодов номинала ${value}: нужно ${needed}, есть ${pool.length}`);
+            return null; // не хватает – отказ
+        }
+        // берём первые `needed` кодов
+        const chosen = pool.slice(0, needed);
+        for (const item of chosen) {
+            selectedIds.push(item.id);
+            selectedItems.push(item);
+        }
+    }
+
+    // 6. Резервируем выбранные коды
+    const updateData: Record<string, unknown> = {
+        is_used: true,
+        status: 'RESERVED'
+    };
+    if (orderId != null) updateData.order_id = orderId;
+
+    const { error: updateError } = await supabase
+        .from('codes_stock')
+        .update(updateData)
+        .in('id', selectedIds);
+
+    if (updateError) {
+        console.error('[❌] Ошибка при резервировании кодов:', updateError.message);
+        return null;
+    }
+
+    console.log(`[✅] Зарезервирована комбинация для ${targetAmount} UC:`, selectedItems.map(c => `${c.value} UC`).join(' + '));
+    return selectedItems;
 }
 
 /**

@@ -3,11 +3,11 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-export type ActivationResult = 'SUCCESS' | 'CAPTCHA' | 'ERROR' | 'ALREADY_REDEEMED';
+export type ActivationResult = 'SUCCESS' | 'CAPTCHA' | 'ERROR' | 'ALREADY_REDEEMED' | 'CHARACTER_NOT_FOUND';
 
 const client = new KokosApiClient({
-  environment: KokosApiEnvironment.Production,
-  token: process.env.KOKOS_API_KEY || ""
+    environment: KokosApiEnvironment.Production,
+    token: process.env.KOKOS_API_KEY || ""
 });
 
 export async function activateSingleCode(
@@ -16,13 +16,13 @@ export async function activateSingleCode(
     code: string,
     _headless: boolean = true
 ): Promise<ActivationResult> {
-    
+
     console.log(`[API-Request] UID: ${uid}, Code: ${code}`);
 
     try {
         // УДАЛЯЕМ свойство 'account' отсюда. API само выберет аккаунт.
         const result = await client.redeem.redeemCode({
-            requireReceipt: true, 
+            requireReceipt: true,
             playerId: uid,
             codeOverride: code,
         });
@@ -48,11 +48,13 @@ export async function activateSingleCode(
                 case 'RISK_CONTROL':
                     return 'CAPTCHA';
 
-                case 'CHARACTER_NOT_FOUND':
                 case 'INVALID_ACTIVATION_RESPONSE':
                 case 'UNKNOWN':
                 case 'NETWORK_ERROR':
                     return 'ERROR';
+
+                case 'CHARACTER_NOT_FOUND':
+                    return 'CHARACTER_NOT_FOUND';
 
                 default:
                     return 'ERROR';

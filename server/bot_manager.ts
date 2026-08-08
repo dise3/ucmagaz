@@ -1,8 +1,8 @@
 import 'dotenv/config';
 import { createClient } from '@supabase/supabase-js';
 import axios from 'axios';
-import { activateSingleCode } from './activator.ts'; 
-import { findCodesForAmount } from './inventory.ts'; 
+import { activateSingleCode } from './activator.ts';
+import { findCodesForAmount } from './inventory.ts';
 
 
 const supabase = createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_KEY!);
@@ -24,8 +24,8 @@ const sendTg = async (chatId: string | number | string[], text: string) => {
     }
     try {
         await axios.post(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
-            chat_id: chatId, 
-            text, 
+            chat_id: chatId,
+            text,
             parse_mode: 'HTML'
         });
     } catch (e: any) {
@@ -64,7 +64,7 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
         const usedCodes: string[] = [];  // Массив для использованных кодов
 
         const rawCodes = await findCodesForAmount(amount, orderId);
-        
+
         if (!rawCodes || rawCodes.length === 0) {
             console.error(`❌ Не удалось подобрать коды для ${amount} UC`);
             await sendTg(ADMIN_CHAT_ID, `⚠️ <b>ОШИБКА СКЛАДА</b>\nЗаказ #${orderId}\nНе хватает кодов для суммы ${amount} UC!`);
@@ -80,7 +80,7 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
             .select('*')
             .eq('is_active', true)
             .order('id', { ascending: true });
-        
+
         if (accError || !accounts || accounts.length === 0) {
             console.error(`❌ Нет доступных аккаунтов Midasbuy`);
             await sendTg(ADMIN_CHAT_ID, `⚠️ <b>КРИТИЧЕСКАЯ ОШИБКА</b>\nНет активных аккаунтов Midasbuy в базе!`);
@@ -97,21 +97,21 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
         for (let i = 0; i < codesQueue.length; i++) {
             const item = codesQueue[i];
             let isCodeDone = false;
-            
+
             while (!isCodeDone) {
                 if (accIndex >= accounts.length) {
                     console.error(`💀 Все аккаунты исчерпаны на коде ${item.code}`);
                     await sendTg(ADMIN_CHAT_ID, `💀 <b>СТОП БОТ</b>\nВсе аккаунты в капче. Заказ #${orderId} приостановлен.`);
-                    
+
                     await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('id', item.id);
-                    
-                    isCodeDone = true; 
+
+                    isCodeDone = true;
                     break;
                 }
 
                 const currentAcc = accounts[accIndex];
                 console.log(`[🔄] (${i + 1}/${codesQueue.length}) Пробую аккаунт ${currentAcc.email} для кода ${item.code}`);
-                
+
                 const result = await activateSingleCode(
                     { email: currentAcc.email, pass: currentAcc.password },
                     uid,
@@ -120,9 +120,9 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
 
                 if (result === 'SUCCESS') {
                     console.log(`✅ Код ${item.code} на ${item.value} UC активирован.`);
-                    
-                    await supabase.from('codes_stock').update({ 
-                        is_used: true, 
+
+                    await supabase.from('codes_stock').update({
+                        is_used: true,
                         used_at: new Date().toISOString(),
                         buyer_uid: uid,
                         order_id: orderId,
@@ -138,68 +138,109 @@ export async function fulfillOrder(orderId: number, uid: string, amount: number,
                 } else if (result === 'CAPTCHA') {
                     console.log(`🚧 Капча на ${currentAcc.email}. Меняю аккаунт...`);
                     await supabase.from('midas_accounts').update({ is_active: false }).eq('id', currentAcc.id);
-                    accIndex++; 
+                    accIndex++;
 
-                } else if (result === 'ALREADY_REDEEMED' || result === 'ERROR') {
-                    console.log(`❌ Код ${item.code} битый. Ищу замену...`);
-                    
-                    await supabase.from('codes_stock').update({ 
-                        is_used: true, 
-                        status: 'BROKEN',
-                        error_log: result 
-                    }).eq('id', item.id);
 
-                    await sendTg(ADMIN_CHAT_ID, `⚠️ <b>БИТЫЙ КОД</b>\n${item.code} (${item.value} UC)\nЗаказ: #${orderId}. Ищу замену...`);
 
-                    const replacement = await findReplacementCode(orderId, item.value);
-                    if (replacement) {
-                        console.log(`[🔄] Замена найдена: ${replacement.code}. Добавляю в очередь.`);
-                        codesQueue.push(replacement); 
-                    } else {
-                        console.error(`❌ Замены для ${item.value} UC не найдено.`);
-                        finalReport.push({ code: item.code, status: 'FAILED_NO_REPLACEMENT', value: item.value });
+                } else if (result === 'CHARACTER_NOT_FOUND') {
+                    // Останавливаем выполнение заказа – UID не существует
+                    console.error(`❌ Неверный UID: ${uid}. Заказ #${orderId} остановлен.`);
+
+                    // Отправляем уведомления
+                    await sendTg(ADMIN_CHAT_ID,
+                        `⚠️ <b>НЕВЕРНЫЙ UID</b>\nЗаказ #${orderId}\nUID: ${uid}\nКод: ${item.code}\nВыдача остановлена. Проверьте ID игрока.`
+                    );
+                    if (chatId) {
+                        await sendTg(chatId,
+                            `❌ <b>Ошибка активации</b>\nИгрок с UID ${uid} не найден. Проверьте правильность ID и обратитесь в поддержку.`
+                        );
                     }
 
-                    isCodeDone = true; 
+                    // Освобождаем все зарезервированные коды (снимаем резерв)
+                    // Получаем список зарезервированных ID для этого заказа
+                    const { data: reservedCodes } = await supabase
+                        .from('codes_stock')
+                        .select('id')
+                        .eq('order_id', orderId)
+                        .eq('status', 'RESERVED');
+
+                    if (reservedCodes && reservedCodes.length > 0) {
+                        const reservedIds = reservedCodes.map(c => c.id);
+                        await supabase
+                            .from('codes_stock')
+                            .update({ is_used: false, status: null, order_id: null })
+                            .in('id', reservedIds);
+                    }
+
+                    // Обновляем статус заказа
+                    await supabase
+                        .from('orders')
+                        .update({ status: 'invalid_uid', details: JSON.stringify({ error: 'CHARACTER_NOT_FOUND', uid }) })
+                        .eq('id', orderId);
+
+                    // Прерываем выполнение всей функции
+                    return;
+                
+                } else if (result === 'ALREADY_REDEEMED' || result === 'ERROR') {
+                        console.log(`❌ Код ${item.code} битый. Ищу замену...`);
+
+                        await supabase.from('codes_stock').update({
+                            is_used: true,
+                            status: 'BROKEN',
+                            error_log: result
+                        }).eq('id', item.id);
+
+                        await sendTg(ADMIN_CHAT_ID, `⚠️ <b>БИТЫЙ КОД</b>\n${item.code} (${item.value} UC)\nЗаказ: #${orderId}. Ищу замену...`);
+
+                        const replacement = await findReplacementCode(orderId, item.value);
+                        if (replacement) {
+                            console.log(`[🔄] Замена найдена: ${replacement.code}. Добавляю в очередь.`);
+                            codesQueue.push(replacement);
+                        } else {
+                            console.error(`❌ Замены для ${item.value} UC не найдено.`);
+                            finalReport.push({ code: item.code, status: 'FAILED_NO_REPLACEMENT', value: item.value });
+                        }
+
+                        isCodeDone = true;
+                    }
                 }
             }
-        }
 
-        const finalStatus = activatedUcTotal >= amount ? 'completed' : 'partial';
+            const finalStatus = activatedUcTotal >= amount ? 'completed' : 'partial';
 
-        if (finalStatus !== 'completed') {
-            await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('order_id', orderId).eq('status', 'RESERVED');
-        }
-
-        await supabase.from('orders').update({ 
-            status: finalStatus, 
-            current_uc: activatedUcTotal,
-            completed_at: finalStatus === 'completed' ? new Date().toISOString() : null,
-            details: JSON.stringify(finalReport)
-        }).eq('id', orderId);
-
-        if (finalStatus === 'completed') {
-            if (chatId) await sendTg(chatId, `✅ <b>Заказ выполнен!</b>\n${activatedUcTotal} UC успешно зачислены на UID: ${uid}.`);
-            await sendTg(ADMIN_CHAT_ID, `🤖 Заказ #${orderId} выполнен полностью (${activatedUcTotal} UC).`);
-
-            // Отправка использованных кодов в админ-чат
-            if (usedCodes.length > 0) {
-                const codesMessage = `🎫 <b>Использованные коды в заказе #${orderId}:</b>\n${usedCodes.join(', ')}`;
-                await sendTg(ADMIN_CHAT_ID, codesMessage);
+            if (finalStatus !== 'completed') {
+                await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('order_id', orderId).eq('status', 'RESERVED');
             }
-        } else {
-            const msg = `⚠️ Заказ #${orderId} выполнен частично: ${activatedUcTotal}/${amount} UC.`;
-            await sendTg(ADMIN_CHAT_ID, msg);
-            if (chatId) await sendTg(chatId, `⚠️ <b>Ваш заказ выполнен частично.</b>\nЗачислено ${activatedUcTotal} из ${amount} UC. Свяжитесь с поддержкой.`);
-        }
-    } catch (error) {
-        console.error(`💥 Критическая ошибка в fulfillOrder для заказа #${orderId}:`, error);
-        await sendTg(ADMIN_CHAT_ID, `💥 <b>КРИТИЧЕСКАЯ ОШИБКА БОТА</b>\nЗаказ #${orderId}. Проверьте логи.`);
 
-        await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('order_id', orderId).eq('status', 'RESERVED');
-    } finally {
-        // После каждой активации возвращаем все аккаунты в активное состояние
-        await supabase.from('midas_accounts').update({ is_active: true });
-        console.log(`[🔄] Midasbuy аккаунты сброшены (is_active=true) для следующего заказа.`);
+            await supabase.from('orders').update({
+                status: finalStatus,
+                current_uc: activatedUcTotal,
+                completed_at: finalStatus === 'completed' ? new Date().toISOString() : null,
+                details: JSON.stringify(finalReport)
+            }).eq('id', orderId);
+
+            if (finalStatus === 'completed') {
+                if (chatId) await sendTg(chatId, `✅ <b>Заказ выполнен!</b>\n${activatedUcTotal} UC успешно зачислены на UID: ${uid}.`);
+                await sendTg(ADMIN_CHAT_ID, `🤖 Заказ #${orderId} выполнен полностью (${activatedUcTotal} UC).`);
+
+                // Отправка использованных кодов в админ-чат
+                if (usedCodes.length > 0) {
+                    const codesMessage = `🎫 <b>Использованные коды в заказе #${orderId}:</b>\n${usedCodes.join(', ')}`;
+                    await sendTg(ADMIN_CHAT_ID, codesMessage);
+                }
+            } else {
+                const msg = `⚠️ Заказ #${orderId} выполнен частично: ${activatedUcTotal}/${amount} UC.`;
+                await sendTg(ADMIN_CHAT_ID, msg);
+                if (chatId) await sendTg(chatId, `⚠️ <b>Ваш заказ выполнен частично.</b>\nЗачислено ${activatedUcTotal} из ${amount} UC. Свяжитесь с поддержкой.`);
+            }
+        } catch (error) {
+            console.error(`💥 Критическая ошибка в fulfillOrder для заказа #${orderId}:`, error);
+            await sendTg(ADMIN_CHAT_ID, `💥 <b>КРИТИЧЕСКАЯ ОШИБКА БОТА</b>\nЗаказ #${orderId}. Проверьте логи.`);
+
+            await supabase.from('codes_stock').update({ is_used: false, status: null, order_id: null }).eq('order_id', orderId).eq('status', 'RESERVED');
+        } finally {
+            // После каждой активации возвращаем все аккаунты в активное состояние
+            await supabase.from('midas_accounts').update({ is_active: true });
+            console.log(`[🔄] Midasbuy аккаунты сброшены (is_active=true) для следующего заказа.`);
+        }
     }
-}
